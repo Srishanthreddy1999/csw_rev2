@@ -1,0 +1,2130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Check Sheet Portal</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.31/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+  <style>
+    :root {
+      --bg: #eef3ea;
+      --panel: #fcfdf8;
+      --panel-strong: #ffffff;
+      --text: #203126;
+      --muted: #66776b;
+      --primary: #2f6b45;
+      --primary-dark: #1f4f32;
+      --accent: #dce9da;
+      --border: #c8d8c8;
+      --danger: #b8473f;
+      --shadow: 0 18px 40px rgba(33, 56, 42, 0.12);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background:
+        radial-gradient(circle at top left, #f9fcf5 0, #f9fcf5 18%, transparent 18%),
+        linear-gradient(135deg, #edf5e8 0%, #dde9dc 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 12px;
+      transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .login-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .login-card {
+      width: min(100%, 960px);
+      background: rgba(252, 253, 248, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      border-radius: 30px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+    }
+
+    .login-hero {
+      padding: 48px;
+      background:
+        linear-gradient(160deg, rgba(47, 107, 69, 0.96), rgba(31, 79, 50, 0.92)),
+        #2f6b45;
+      color: #fff;
+      position: relative;
+    }
+
+    .login-hero::after {
+      content: "";
+      position: absolute;
+      right: -80px;
+      bottom: -60px;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .login-hero h1 {
+      margin: 22px 0 14px;
+      font-size: clamp(32px, 5vw, 48px);
+      line-height: 1.05;
+    }
+
+    .login-hero p {
+      max-width: 420px;
+      color: rgba(255, 255, 255, 0.82);
+      line-height: 1.6;
+    }
+
+    .hero-points {
+      margin: 28px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 14px;
+    }
+
+    .hero-points li {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .hero-points span {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: inline-grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.14);
+      flex-shrink: 0;
+      font-size: 13px;
+    }
+
+    .login-form-wrap {
+      padding: 44px 36px;
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .login-form-wrap h2 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    .subtext {
+      margin: 0 0 26px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #2d4435;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(47, 107, 69, 0.12);
+    }
+
+    .action-btn,
+    .ghost-btn,
+    .danger-btn {
+      padding: 12px 18px;
+      font-weight: 700;
+    }
+
+    .action-btn {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 10px 20px rgba(47, 107, 69, 0.18);
+    }
+
+    .action-btn:hover {
+      background: var(--primary-dark);
+    }
+
+    .ghost-btn {
+      background: #edf3ec;
+      color: var(--primary-dark);
+    }
+
+    .danger-btn {
+      background: #f8e4e1;
+      color: var(--danger);
+    }
+
+    .note-card {
+      margin-top: 18px;
+      padding: 14px;
+      background: #f2f7f1;
+      border: 1px solid #dde9dc;
+      border-radius: 14px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .credentials {
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px dashed var(--border);
+      color: #32513d;
+      font-size: 14px;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: rgba(28, 57, 40, 0.96);
+      color: #eef7ef;
+      padding: 28px 20px;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 24px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+
+    .brand h2 {
+      margin: 10px 0 6px;
+      font-size: 24px;
+    }
+
+    .brand p,
+    .user-badge p {
+      margin: 0;
+      color: rgba(238, 247, 239, 0.72);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    .user-badge {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      padding: 16px;
+    }
+
+    .nav-links {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .nav-link {
+      width: 100%;
+      text-align: left;
+      padding: 14px 16px;
+      background: transparent;
+      color: #eef7ef;
+      border: 1px solid transparent;
+      border-radius: 14px;
+    }
+
+    .nav-link.active,
+    .nav-link:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .sidebar-footer {
+      display: grid;
+      gap: 10px;
+    }
+
+    .sidebar-footer .ghost-btn {
+      background: rgba(255, 255, 255, 0.1);
+      color: #eef7ef;
+    }
+
+    .main-area {
+      padding: 28px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-size: clamp(24px, 3vw, 34px);
+    }
+
+    .topbar p {
+      margin: 6px 0 0;
+      color: var(--muted);
+    }
+
+    .topbar-meta {
+      text-align: right;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .page {
+      display: none;
+      gap: 20px;
+    }
+
+    .page.active {
+      display: grid;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .card,
+    .table-card,
+    .form-card,
+    .list-card {
+      background: rgba(252, 253, 248, 0.9);
+      border: 1px solid rgba(200, 216, 200, 0.7);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .card {
+      padding: 24px;
+    }
+
+    .card h3,
+    .table-card h3,
+    .form-card h3,
+    .list-card h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .metric {
+      font-size: 34px;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+
+    .metric-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .table-card,
+    .form-card,
+    .list-card {
+      padding: 22px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .card-header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 14px;
+      border: 1px solid #e0ebe0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 700px;
+      background: #fff;
+    }
+
+    th,
+    td {
+      padding: 14px;
+      text-align: left;
+      border-bottom: 1px solid #edf3ec;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f2f7f1;
+      color: #476050;
+      font-weight: 700;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .toolbar .field {
+      flex: 1 1 220px;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .three-col {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .small-note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .template-summary,
+    .profile-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .mini-card {
+      padding: 16px;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid #e5efe5;
+    }
+
+    .mini-card strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .entry-sheet {
+      display: grid;
+      gap: 18px;
+    }
+
+    .check-row {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 16px;
+      background: #fff;
+      border: 1px solid #e5efe5;
+      border-radius: 16px;
+    }
+
+    .radio-pair {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .radio-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #fafdf7;
+    }
+
+    .empty-state {
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed var(--border);
+      border-radius: 18px;
+      background: #fbfdf9;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: #1f4f32;
+      color: #fff;
+      padding: 14px 18px;
+      border-radius: 14px;
+      box-shadow: 0 14px 28px rgba(31, 79, 50, 0.24);
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      z-index: 10;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(18, 28, 21, 0.48);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      z-index: 20;
+    }
+
+    .modal-card {
+      width: min(100%, 720px);
+      background: rgba(252, 253, 248, 0.98);
+      border: 1px solid rgba(200, 216, 200, 0.8);
+      border-radius: 24px;
+      box-shadow: 0 24px 50px rgba(18, 35, 25, 0.22);
+      padding: 24px;
+    }
+
+    @media (max-width: 980px) {
+      .login-card,
+      .app-shell,
+      .split,
+      .two-col,
+      .three-col,
+      .cards,
+      .template-summary,
+      .profile-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+      }
+
+      .app-shell {
+        min-height: auto;
+      }
+
+      .check-row {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .topbar-meta {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="loginView" class="login-shell">
+    <div class="login-card">
+      <section class="login-hero">
+        <div class="eyebrow">Internal Quality System</div>
+        <h1>Digital Check Sheet Portal</h1>
+        <p>
+          A simple first version for admin-managed templates, employee data entry,
+          and PDF check sheet downloads.
+        </p>
+        <ul class="hero-points">
+          <li><span>01</span> Admin creates templates and employee accounts.</li>
+          <li><span>02</span> Employees log in with employee ID and password.</li>
+          <li><span>03</span> Daily entries are stored locally and exported as PDF.</li>
+        </ul>
+      </section>
+
+      <section class="login-form-wrap">
+        <h2>Sign In</h2>
+        <p class="subtext">Use employee ID as username. The default admin account is preloaded for testing.</p>
+
+        <form id="loginForm" class="form-grid">
+          <div class="field">
+            <label for="loginEmployeeId">User Name / Employee ID</label>
+            <input id="loginEmployeeId" type="text" placeholder="Enter employee ID" required />
+          </div>
+
+          <div class="field">
+            <label for="loginPassword">Password</label>
+            <input id="loginPassword" type="password" placeholder="Enter password" required />
+          </div>
+
+          <button class="action-btn" type="submit">Sign In</button>
+        </form>
+
+        <div class="note-card">
+          This app can now store demo data in Firebase Firestore when you add your Firebase config.
+          Until then, it still keeps a local copy in <code>localStorage</code> for demo use.
+        </div>
+
+        <div class="credentials">
+          <strong>Default admin login</strong><br />
+          User Name: <code>ADMIN001</code><br />
+          Password: <code>admin123</code><br /><br />
+          <strong>Sample employee login</strong><br />
+          User Name: <code>EMP001</code><br />
+          Password: <code>emp123</code>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="appView" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="eyebrow">Factory Control</div>
+        <h2>Check Sheet Portal</h2>
+        <p>Paperless module check sheets with role-based access.</p>
+      </div>
+
+      <div class="user-badge">
+        <strong id="sidebarName">-</strong>
+        <p id="sidebarRole">-</p>
+        <p id="sidebarDepartment">-</p>
+      </div>
+
+      <nav class="nav-links">
+        <button class="nav-link active" data-page="dashboardPage">Dashboard</button>
+        <button class="nav-link" data-page="usersPage" data-admin-only="true">Users</button>
+        <button class="nav-link" data-page="templatesPage" data-admin-only="true">Templates</button>
+        <button class="nav-link" data-page="entryPage">Daily Data Entry</button>
+        <button class="nav-link" data-page="profilePage">Profile</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button id="resetSeedButton" class="ghost-btn" type="button">Reset Demo Data</button>
+        <button id="logoutButton" class="ghost-btn" type="button">Logout</button>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <div class="topbar">
+        <div>
+          <h1 id="pageTitle">Dashboard</h1>
+          <p id="pageSubtitle">Overview of modules, users, templates, and recent entries.</p>
+        </div>
+        <div class="topbar-meta">
+          <div id="topbarDate">-</div>
+          <div id="topbarUser">-</div>
+        </div>
+      </div>
+
+      <section id="dashboardPage" class="page active">
+        <div class="cards">
+          <article class="card">
+            <h3>Total No of Modules</h3>
+            <div class="metric" id="totalModulesMetric">0</div>
+            <div class="metric-note">Unique module names created in templates.</div>
+          </article>
+          <article class="card">
+            <h3>Total No of Users</h3>
+            <div class="metric" id="totalUsersMetric">0</div>
+            <div class="metric-note">Admin plus all employees using the system.</div>
+          </article>
+          <article class="card">
+            <h3>Total Templates</h3>
+            <div class="metric" id="totalTemplatesMetric">0</div>
+            <div class="metric-note">No duplicate part numbers allowed.</div>
+          </article>
+        </div>
+
+        <div class="table-card">
+          <div class="card-header">
+            <div>
+              <h3>Search Previous Check Sheets</h3>
+              <p>Search by module part number and download previously entered reports.</p>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <div class="field">
+              <label for="dashboardSearchPart">Module Part Number</label>
+              <input id="dashboardSearchPart" type="text" placeholder="Enter part number" />
+            </div>
+            <button id="dashboardSearchButton" class="action-btn" type="button">Search</button>
+            <button id="dashboardSearchClearButton" class="ghost-btn" type="button">Clear</button>
+          </div>
+
+          <div id="dashboardSearchResults"></div>
+        </div>
+
+        <div class="table-card">
+          <div class="card-header">
+            <div>
+              <h3>Recently Entered Data</h3>
+              <p>Latest saved daily check sheets.</p>
+            </div>
+          </div>
+          <div id="recentEntriesWrap"></div>
+        </div>
+      </section>
+
+      <section id="usersPage" class="page">
+        <div class="split">
+          <div class="form-card">
+            <div class="card-header">
+              <div>
+                <h3>Create Employee Account</h3>
+                <p>Only admin can create employee accounts.</p>
+              </div>
+            </div>
+
+            <form id="employeeForm" class="form-grid">
+              <div class="two-col">
+                <div class="field">
+                  <label for="employeeName">Employee Name</label>
+                  <input id="employeeName" type="text" required />
+                </div>
+                <div class="field">
+                  <label for="employeeCode">Employee ID</label>
+                  <input id="employeeCode" type="text" required />
+                </div>
+              </div>
+
+              <div class="two-col">
+                <div class="field">
+                  <label for="employeeDob">Employee DOB</label>
+                  <input id="employeeDob" type="date" required />
+                </div>
+                <div class="field">
+                  <label for="employeePassword">Password</label>
+                  <input id="employeePassword" type="password" required />
+                </div>
+              </div>
+
+              <div class="two-col">
+                <div class="field">
+                  <label for="employeeDepartment">Department</label>
+                  <input id="employeeDepartment" type="text" placeholder="Production / Quality / Maintenance" required />
+                </div>
+                <div class="field">
+                  <label for="employeeReporting">Reporting Person Name</label>
+                  <input id="employeeReporting" type="text" placeholder="Supervisor name" required />
+                </div>
+              </div>
+
+              <button class="action-btn" type="submit">Create Account</button>
+            </form>
+          </div>
+
+          <div class="list-card">
+            <div class="card-header">
+              <div>
+                <h3>User Summary</h3>
+                <p>Total employee users visible below.</p>
+              </div>
+              <div class="metric" id="employeeCountMetric">0</div>
+            </div>
+            <div id="userSummaryState" class="small-note"></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="card-header">
+            <div>
+              <h3>Employees Using This Website</h3>
+              <p>S.No, name, employee ID, and department.</p>
+            </div>
+          </div>
+          <div id="usersTableWrap"></div>
+        </div>
+      </section>
+
+      <section id="templatesPage" class="page">
+        <div class="split">
+          <div class="form-card">
+            <div class="card-header">
+              <div>
+                <h3>Create Template</h3>
+                <p>Upload Excel file with checkpoints. Duplicate part numbers are blocked.</p>
+              </div>
+            </div>
+
+            <form id="templateForm" class="form-grid">
+              <div class="two-col">
+                <div class="field">
+                  <label for="templateModuleName">Name of the Module</label>
+                  <input id="templateModuleName" type="text" required />
+                </div>
+                <div class="field">
+                  <label for="templatePartNo">Module Part Number</label>
+                  <input id="templatePartNo" type="text" required />
+                </div>
+              </div>
+
+              <div class="two-col">
+                <div class="field">
+                  <label for="templateLevel">Level</label>
+                  <select id="templateLevel" required>
+                    <option value="IPQC">IPQC</option>
+                    <option value="LQC">LQC</option>
+                    <option value="OQC">OQC</option>
+                    <option value="Safety">Safety</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="templateFile">Upload Check Points Excel</label>
+                  <input id="templateFile" type="file" accept=".xlsx,.xls,.csv" required />
+                </div>
+              </div>
+
+              <div class="small-note">
+                Excel file should keep checkpoints in the first column. Example:
+                <code>Checkpoint</code>, <code>Machine condition</code>, <code>Oil level</code>.
+              </div>
+
+              <button class="action-btn" type="submit">Create Template</button>
+            </form>
+          </div>
+
+          <div class="list-card">
+            <div class="card-header">
+              <div>
+                <h3>Template Rules</h3>
+                <p>Template creation format requested.</p>
+              </div>
+            </div>
+            <div class="template-summary">
+              <div class="mini-card">
+                <strong>Name of Module</strong>
+                Human-readable module title used in daily entry.
+              </div>
+              <div class="mini-card">
+                <strong>Module Part Number</strong>
+                Must be unique. No duplicate template allowed.
+              </div>
+              <div class="mini-card">
+                <strong>Level</strong>
+                Example: IPQC.
+              </div>
+              <div class="mini-card">
+                <strong>Check Points Excel</strong>
+                Upload source used to build the digital checklist.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="card-header">
+            <div>
+              <h3>Templates</h3>
+              <p>S.No, part number, module name, level, created on, check sheet download.</p>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <div class="field">
+              <label for="templateSearch">Search by part number or module</label>
+              <input id="templateSearch" type="text" placeholder="Search templates" />
+            </div>
+          </div>
+
+          <div id="templatesTableWrap"></div>
+        </div>
+      </section>
+
+      <section id="entryPage" class="page">
+        <div class="form-card">
+          <div class="card-header">
+            <div>
+              <h3>Daily Data Entry</h3>
+              <p>Select a module to open the uploaded check sheet template.</p>
+            </div>
+          </div>
+
+          <div class="three-col">
+            <div class="field">
+              <label for="entryTemplateSelect">Module Name / Part Number</label>
+              <select id="entryTemplateSelect"></select>
+            </div>
+            <div class="field">
+              <label for="entryDate">Date</label>
+              <input id="entryDate" type="text" readonly />
+            </div>
+            <div class="field">
+              <label for="entryTime">Time</label>
+              <input id="entryTime" type="text" readonly />
+            </div>
+          </div>
+        </div>
+
+        <div id="entryTemplateMeta" class="list-card hidden"></div>
+
+        <form id="entryForm" class="form-card hidden">
+          <div class="card-header">
+            <div>
+              <h3>Check Sheet</h3>
+              <p>Employee enters serial number, selects OK / Not OK, and adds verified by name.</p>
+            </div>
+          </div>
+
+          <div class="three-col">
+            <div class="field">
+              <label for="entryInspectedBy">Inspected By</label>
+              <input id="entryInspectedBy" type="text" readonly />
+            </div>
+            <div class="field">
+              <label for="entryVerifiedBy">Verified By</label>
+              <input id="entryVerifiedBy" type="text" placeholder="Reporting person name" required />
+            </div>
+            <div class="field">
+              <label for="entryGeneralSerial">Serial Number Prefix</label>
+              <input id="entryGeneralSerial" type="text" placeholder="Enter inspected serial number" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="entryQuantityDone">Quantity Done</label>
+            <input id="entryQuantityDone" type="number" min="0" placeholder="Enter completed quantity" />
+          </div>
+
+          <div id="checkpointRows" class="entry-sheet"></div>
+
+          <div class="field">
+            <label for="entryRemarks">Remarks</label>
+            <textarea id="entryRemarks" rows="4" placeholder="Additional notes"></textarea>
+          </div>
+
+          <div class="toolbar">
+            <button class="action-btn" type="submit">Save and Download PDF</button>
+            <button id="clearEntryButton" class="ghost-btn" type="button">Clear Form</button>
+          </div>
+        </form>
+
+        <div id="entryEmptyState" class="empty-state">
+          No template selected yet. Choose a module to open its check sheet.
+        </div>
+      </section>
+
+      <section id="profilePage" class="page">
+        <div class="form-card">
+          <div class="card-header">
+            <div>
+              <h3>Profile</h3>
+              <p>Employee code, role, department, and other basic details.</p>
+            </div>
+          </div>
+          <div id="profileDetails" class="profile-grid"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="editTemplateModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="card-header">
+        <div>
+          <h3>Edit Template</h3>
+          <p>Update module details or replace the checkpoint file.</p>
+        </div>
+        <button class="ghost-btn" type="button" onclick="closeEditModal()">Close</button>
+      </div>
+
+      <form id="editTemplateForm" class="form-grid">
+        <div class="two-col">
+          <div class="field">
+            <label for="editTemplateName">Name of the Module</label>
+            <input id="editTemplateName" type="text" required />
+          </div>
+          <div class="field">
+            <label for="editTemplatePartNo">Module Part Number</label>
+            <input id="editTemplatePartNo" type="text" required />
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="field">
+            <label for="editTemplateLevel">Level</label>
+            <select id="editTemplateLevel" required>
+              <option value="IPQC">IPQC</option>
+              <option value="LQC">LQC</option>
+              <option value="OQC">OQC</option>
+              <option value="Safety">Safety</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="editTemplateFile">Replace Check Points Excel</label>
+            <input id="editTemplateFile" type="file" accept=".xlsx,.xls,.csv" />
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button class="action-btn" type="submit">Update Template</button>
+          <button class="ghost-btn" type="button" onclick="closeEditModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <img id="pdfLogo" src="hbl-logo.png" alt="HBL Logo" class="hidden" />
+
+  <script>
+    const useFirebase = true;
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBA56ooEYl-BNFtH7alEfyMuknXaIapulg",
+      authDomain: "checksheet-portal.firebaseapp.com",
+      projectId: "checksheet-portal",
+      storageBucket: "checksheet-portal.firebasestorage.app",
+      messagingSenderId: "804392039356",
+      appId: "1:804392039356:web:a3955b065e293951bf31b9"
+    };
+
+    const STORAGE_KEY = "checksheet-portal-data-v1";
+    const SESSION_KEY = "checksheet-portal-session-v1";
+    const { jsPDF } = window.jspdf;
+
+    let db = null;
+    let appState = { seeded: false, users: [], templates: [], entries: [] };
+    let currentUser = null;
+
+    initializeApp();
+
+    async function initializeApp() {
+      await initFirebase();
+      await loadState();
+      currentUser = loadSession();
+      seedDemoData();
+      updateClock();
+      setInterval(updateClock, 1000);
+      setupEvents();
+      renderApp();
+    }
+
+    async function initFirebase() {
+      if (!useFirebase) {
+        console.warn("Firebase is disabled in app settings.");
+        return false;
+      }
+
+      const missingConfig =
+        !FIREBASE_CONFIG ||
+        !FIREBASE_CONFIG.apiKey ||
+        FIREBASE_CONFIG.apiKey.includes("YOUR_");
+
+      if (missingConfig) {
+        console.warn("Firebase config not set. Falling back to localStorage.");
+        return false;
+      }
+
+      try {
+        firebase.initializeApp(FIREBASE_CONFIG);
+        db = firebase.firestore();
+        return true;
+      } catch (error) {
+        console.error("Firebase initialization failed:", error);
+        return false;
+      }
+    }
+
+    function loadStateFromLocal() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
+          seeded: false,
+          users: [],
+          templates: [],
+          entries: []
+        };
+      } catch (error) {
+        return {
+          seeded: false,
+          users: [],
+          templates: [],
+          entries: []
+        };
+      }
+    }
+
+    async function loadStateFromFirestore() {
+      if (!db) {
+        return null;
+      }
+
+      try {
+        const snapshot = await db.collection("appState").doc("main").get();
+        if (!snapshot.exists) {
+          return null;
+        }
+        return snapshot.data();
+      } catch (error) {
+        console.error("Firebase load failed:", error);
+        showToast("Unable to load data from Firebase. Using local data.", true);
+        return null;
+      }
+    }
+
+    async function loadState() {
+      const localState = loadStateFromLocal();
+      if (!db) {
+        appState = localState;
+        return;
+      }
+
+      const remoteState = await loadStateFromFirestore();
+      appState = remoteState || localState;
+    }
+
+    function saveStateToFirestore() {
+      if (!db) {
+        return Promise.resolve();
+      }
+      return db.collection("appState").doc("main").set(appState);
+    }
+
+    function persistState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      if (db) {
+        saveStateToFirestore().catch((error) => {
+          console.error("Firebase save failed:", error);
+        });
+      }
+    }
+
+    function seedDemoData() {
+      if (appState.seeded) {
+        return;
+      }
+
+      appState = {
+        seeded: true,
+        users: [
+          {
+            id: "u-admin",
+            employeeId: "ADMIN001",
+            name: "Main Admin",
+            dob: "1990-01-01",
+            password: "admin123",
+            department: "Administration",
+            reportingPerson: "Management",
+            role: "admin",
+            createdOn: new Date().toISOString()
+          },
+          {
+            id: "u-emp-1",
+            employeeId: "EMP001",
+            name: "Ravi Kumar",
+            dob: "1998-06-15",
+            password: "emp123",
+            department: "Quality",
+            reportingPerson: "Suresh",
+            role: "employee",
+            createdOn: new Date().toISOString()
+          }
+        ],
+        templates: [
+          {
+            id: "tpl-1",
+            moduleName: "Motor Housing Inspection",
+            partNo: "MH-1001",
+            level: "IPQC",
+            createdOn: new Date().toISOString(),
+            checkpoints: [
+              "Surface condition",
+              "Part number marking",
+              "Dimension alignment"
+            ],
+            fileName: "motor-housing.xlsx"
+          }
+        ],
+        entries: []
+      };
+
+      persistState();
+    }
+
+    async function resetDemoData() {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(SESSION_KEY);
+      if (db) {
+        await db.collection("appState").doc("main").delete().catch(() => {});
+      }
+      appState = { seeded: false, users: [], templates: [], entries: [] };
+      currentUser = null;
+      seedDemoData();
+      renderApp();
+      showToast("Demo data has been reset.");
+    }
+
+    function loadSession() {
+      try {
+        return JSON.parse(localStorage.getItem(SESSION_KEY));
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function persistSession() {
+      if (currentUser) {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem(SESSION_KEY);
+      }
+    }
+
+    function setupEvents() {
+      bindEvent("loginForm", "submit", handleLogin);
+      bindEvent("logoutButton", "click", handleLogout);
+      bindEvent("resetSeedButton", "click", resetDemoData);
+      bindEvent("employeeForm", "submit", handleEmployeeCreate);
+      bindEvent("templateForm", "submit", handleTemplateCreate);
+      bindEvent("templateSearch", "input", renderTemplatesTable);
+      bindEvent("entryTemplateSelect", "change", renderEntryTemplate);
+      bindEvent("entryForm", "submit", handleEntrySubmit);
+      bindEvent("clearEntryButton", "click", clearEntryForm);
+      bindEvent("dashboardSearchButton", "click", renderDashboardSearch);
+      bindEvent("dashboardSearchClearButton", "click", clearDashboardSearch);
+      bindEvent("editTemplateForm", "submit", handleEditTemplateSubmit);
+
+      document.querySelectorAll(".nav-link").forEach((button) => {
+        button.addEventListener("click", () => openPage(button.dataset.page));
+      });
+    }
+
+    function bindEvent(id, eventName, handler) {
+      const element = document.getElementById(id);
+      if (element) {
+        element.addEventListener(eventName, handler);
+      }
+    }
+
+    function handleLogin(event) {
+      event.preventDefault();
+
+      const employeeId = document.getElementById("loginEmployeeId").value.trim();
+      const password = document.getElementById("loginPassword").value;
+
+      const matchedUser = appState.users.find((user) => (
+        user.employeeId.toLowerCase() === employeeId.toLowerCase() && user.password === password
+      ));
+
+      if (!matchedUser) {
+        showToast("Invalid employee ID or password.", true);
+        return;
+      }
+
+      currentUser = {
+        id: matchedUser.id,
+        employeeId: matchedUser.employeeId,
+        name: matchedUser.name,
+        department: matchedUser.department,
+        role: matchedUser.role,
+        reportingPerson: matchedUser.reportingPerson,
+        dob: matchedUser.dob
+      };
+
+      persistSession();
+      document.getElementById("loginForm").reset();
+      renderApp();
+      showToast("Signed in successfully.");
+    }
+
+    function handleLogout() {
+      currentUser = null;
+      persistSession();
+      renderApp();
+    }
+
+    function renderApp() {
+      const loginView = document.getElementById("loginView");
+      const appView = document.getElementById("appView");
+
+      if (!currentUser) {
+        loginView.classList.remove("hidden");
+        appView.classList.add("hidden");
+        return;
+      }
+
+      loginView.classList.add("hidden");
+      appView.classList.remove("hidden");
+
+      document.getElementById("sidebarName").textContent = currentUser.name;
+      document.getElementById("sidebarRole").textContent = currentUser.role.toUpperCase();
+      document.getElementById("sidebarDepartment").textContent = currentUser.department;
+      document.getElementById("topbarUser").textContent = currentUser.name + " | " + currentUser.employeeId;
+
+      const adminOnlyButtons = document.querySelectorAll("[data-admin-only='true']");
+      adminOnlyButtons.forEach((button) => {
+        button.classList.toggle("hidden", currentUser.role !== "admin");
+      });
+
+      if (currentUser.role !== "admin" && ["usersPage", "templatesPage"].includes(getActivePageId())) {
+        openPage("dashboardPage");
+      } else {
+        refreshCurrentPage();
+      }
+    }
+
+    function getActivePageId() {
+      const active = document.querySelector(".page.active");
+      return active ? active.id : "dashboardPage";
+    }
+
+    function openPage(pageId) {
+      if (currentUser.role !== "admin" && ["usersPage", "templatesPage"].includes(pageId)) {
+        showToast("Employees have only data entry and profile access.", true);
+        return;
+      }
+
+      document.querySelectorAll(".page").forEach((page) => page.classList.remove("active"));
+      document.getElementById(pageId).classList.add("active");
+
+      document.querySelectorAll(".nav-link").forEach((link) => {
+        link.classList.toggle("active", link.dataset.page === pageId);
+      });
+
+      const pageMap = {
+        dashboardPage: {
+          title: "Dashboard",
+          subtitle: "Overview of modules, users, templates, and recent entries."
+        },
+        usersPage: {
+          title: "Users",
+          subtitle: "Create and view employee accounts."
+        },
+        templatesPage: {
+          title: "Templates",
+          subtitle: "Create module templates from uploaded Excel checkpoints."
+        },
+        entryPage: {
+          title: "Daily Data Entry",
+          subtitle: "Fill check sheets using the templates created by admin."
+        },
+        profilePage: {
+          title: "Profile",
+          subtitle: "Employee account details and basic role information."
+        }
+      };
+
+      document.getElementById("pageTitle").textContent = pageMap[pageId].title;
+      document.getElementById("pageSubtitle").textContent = pageMap[pageId].subtitle;
+      refreshCurrentPage();
+    }
+
+    function refreshCurrentPage() {
+      renderDashboard();
+      renderUsers();
+      renderTemplates();
+      renderEntryTemplateOptions();
+      renderProfile();
+    }
+
+    function renderDashboard() {
+      document.getElementById("totalModulesMetric").textContent = getModuleCount();
+      document.getElementById("totalUsersMetric").textContent = appState.users.length;
+      document.getElementById("totalTemplatesMetric").textContent = appState.templates.length;
+      renderRecentEntries();
+      renderDashboardSearch();
+    }
+
+    function getModuleCount() {
+      return new Set(appState.templates.map((template) => template.moduleName)).size;
+    }
+
+    function renderRecentEntries() {
+      const wrap = document.getElementById("recentEntriesWrap");
+      let entries = [...appState.entries].sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+
+      if (currentUser.role !== "admin") {
+        entries = entries.filter((entry) => entry.inspectedById === currentUser.employeeId);
+      }
+
+      entries = entries.slice(0, 5);
+
+      if (!entries.length) {
+        wrap.innerHTML = '<div class="empty-state">No recently entered data yet.</div>';
+        return;
+      }
+
+      wrap.innerHTML = renderTable(
+        ["S.No", "Part No", "Module", "Date", "Inspected By", "Verified By", "Download"],
+        entries.map((entry, index) => [
+          index + 1,
+          entry.partNo,
+          entry.moduleName,
+          formatDateTime(entry.savedAt).date,
+          entry.inspectedBy,
+          entry.verifiedBy,
+          `<button class="ghost-btn" type="button" onclick="downloadEntryPdf('${entry.id}')">Download</button>`
+        ])
+      );
+    }
+
+    function renderDashboardSearch() {
+      const searchValue = document.getElementById("dashboardSearchPart").value.trim().toLowerCase();
+      const resultsWrap = document.getElementById("dashboardSearchResults");
+
+      let entries = [...appState.entries];
+      if (currentUser.role !== "admin") {
+        entries = entries.filter((entry) => entry.inspectedById === currentUser.employeeId);
+      }
+
+      if (searchValue) {
+        entries = entries.filter((entry) => entry.partNo.toLowerCase().includes(searchValue));
+      }
+
+      if (!entries.length) {
+        resultsWrap.innerHTML = '<div class="empty-state">No previous check sheet found for this search.</div>';
+        return;
+      }
+
+      resultsWrap.innerHTML = renderTable(
+        ["S.No", "Part No", "Module", "Saved On", "Inspected By", "Download"],
+        entries.map((entry, index) => [
+          index + 1,
+          entry.partNo,
+          entry.moduleName,
+          formatDateTime(entry.savedAt).full,
+          entry.inspectedBy,
+          `<button class="ghost-btn" type="button" onclick="downloadEntryPdf('${entry.id}')">Download PDF</button>`
+        ])
+      );
+    }
+
+    function clearDashboardSearch() {
+      document.getElementById("dashboardSearchPart").value = "";
+      renderDashboardSearch();
+    }
+
+    function handleEmployeeCreate(event) {
+      event.preventDefault();
+
+      if (currentUser.role !== "admin") {
+        showToast("Only admin can create employee accounts.", true);
+        return;
+      }
+
+      const employeeId = document.getElementById("employeeCode").value.trim();
+      const alreadyExists = appState.users.some((user) => user.employeeId.toLowerCase() === employeeId.toLowerCase());
+
+      if (alreadyExists) {
+        showToast("Employee ID already exists.", true);
+        return;
+      }
+
+      const newUser = {
+        id: "u-" + Date.now(),
+        employeeId,
+        name: document.getElementById("employeeName").value.trim(),
+        dob: document.getElementById("employeeDob").value,
+        password: document.getElementById("employeePassword").value,
+        department: document.getElementById("employeeDepartment").value.trim(),
+        reportingPerson: document.getElementById("employeeReporting").value.trim(),
+        role: "employee",
+        createdOn: new Date().toISOString()
+      };
+
+      appState.users.push(newUser);
+      persistState();
+      document.getElementById("employeeForm").reset();
+      refreshCurrentPage();
+      showToast("Employee account created.");
+    }
+
+    function renderUsers() {
+      const usersWrap = document.getElementById("usersTableWrap");
+      const employees = appState.users.filter((user) => user.role === "employee");
+
+      document.getElementById("employeeCountMetric").textContent = employees.length;
+      document.getElementById("userSummaryState").textContent = employees.length
+        ? "Employees listed below can sign in using employee ID and password."
+        : "No employee accounts created yet.";
+
+      if (currentUser.role !== "admin") {
+        usersWrap.innerHTML = '<div class="empty-state">Users page is available only for admin.</div>';
+        return;
+      }
+
+      usersWrap.innerHTML = employees.length
+        ? renderTable(
+            ["S.No", "Name", "ID", "Department"],
+            employees.map((user, index) => [index + 1, user.name, user.employeeId, user.department])
+          )
+        : '<div class="empty-state">No employee users available yet.</div>';
+    }
+
+    async function handleTemplateCreate(event) {
+      event.preventDefault();
+
+      if (currentUser.role !== "admin") {
+        showToast("Only admin can create templates.", true);
+        return;
+      }
+
+      const partNo = document.getElementById("templatePartNo").value.trim();
+      const duplicate = appState.templates.some((template) => template.partNo.toLowerCase() === partNo.toLowerCase());
+
+      if (duplicate) {
+        showToast("Template with this part number already exists.", true);
+        return;
+      }
+
+      const fileInput = document.getElementById("templateFile");
+      const file = fileInput.files[0];
+
+      if (!file) {
+        showToast("Please upload an Excel file.", true);
+        return;
+      }
+
+      try {
+        const checkpoints = await readCheckpointsFromExcel(file);
+
+        if (!checkpoints.length) {
+          showToast("No checkpoints found in the uploaded file.", true);
+          return;
+        }
+
+        appState.templates.push({
+          id: "tpl-" + Date.now(),
+          moduleName: document.getElementById("templateModuleName").value.trim(),
+          partNo,
+          level: document.getElementById("templateLevel").value,
+          createdOn: new Date().toISOString(),
+          checkpoints,
+          fileName: file.name
+        });
+
+        persistState();
+        document.getElementById("templateForm").reset();
+        refreshCurrentPage();
+        showToast("Template created successfully.");
+      } catch (error) {
+        showToast("Excel file could not be read. Please check the format.", true);
+      }
+    }
+
+    function readCheckpointsFromExcel(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = (event) => {
+          try {
+            const data = new Uint8Array(event.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            const firstSheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[firstSheetName];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+            const checkpoints = rows
+              .map((row) => Array.isArray(row) ? String(row[0] || "").trim() : "")
+              .filter((value) => value && value.toLowerCase() !== "checkpoint");
+
+            resolve(checkpoints);
+          } catch (error) {
+            reject(error);
+          }
+        };
+
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function renderTemplates() {
+      renderTemplatesTable();
+    }
+
+    function renderTemplatesTable() {
+      const wrap = document.getElementById("templatesTableWrap");
+      const searchValue = document.getElementById("templateSearch").value.trim().toLowerCase();
+
+      let templates = [...appState.templates].sort((a, b) => new Date(b.createdOn) - new Date(a.createdOn));
+      if (searchValue) {
+        templates = templates.filter((template) => (
+          template.partNo.toLowerCase().includes(searchValue) ||
+          template.moduleName.toLowerCase().includes(searchValue)
+        ));
+      }
+
+      if (currentUser.role !== "admin") {
+        wrap.innerHTML = '<div class="empty-state">Templates page is available only for admin.</div>';
+        return;
+      }
+
+      wrap.innerHTML = templates.length
+        ? renderTable(
+            ["S.No", "Part No", "Name of Module", "Level", "Created On", "Actions"],
+            templates.map((template, index) => [
+              index + 1,
+              template.partNo,
+              template.moduleName,
+              template.level,
+              formatDateTime(template.createdOn).date,
+              `<button class="ghost-btn" style="padding: 8px 12px; font-size: 12px; margin-right: 4px;" type="button" onclick="downloadTemplateCheckpoints('${template.id}')">Download</button>` +
+              `<button class="ghost-btn" style="padding: 8px 12px; font-size: 12px; margin-right: 4px;" type="button" onclick="editTemplate('${template.id}')">Edit</button>` +
+              `<button class="danger-btn" style="padding: 8px 12px; font-size: 12px;" type="button" onclick="deleteTemplate('${template.id}')">Delete</button>`
+            ])
+          )
+        : '<div class="empty-state">No templates available yet.</div>';
+    }
+
+    function renderEntryTemplateOptions() {
+      const select = document.getElementById("entryTemplateSelect");
+      const templates = appState.templates;
+
+      const currentValue = select.value;
+      select.innerHTML = '<option value="">Select Module</option>' + templates.map((template) => (
+        `<option value="${template.id}">${template.moduleName} | ${template.partNo}</option>`
+      )).join("");
+
+      if (templates.some((template) => template.id === currentValue)) {
+        select.value = currentValue;
+      }
+
+      document.getElementById("entryDate").value = formatDateTime(new Date().toISOString()).date;
+      document.getElementById("entryTime").value = formatDateTime(new Date().toISOString()).time;
+      document.getElementById("entryInspectedBy").value = currentUser.name;
+      renderEntryTemplate();
+    }
+
+    function renderEntryTemplate() {
+      const templateId = document.getElementById("entryTemplateSelect").value;
+      const template = appState.templates.find((item) => item.id === templateId);
+      const meta = document.getElementById("entryTemplateMeta");
+      const form = document.getElementById("entryForm");
+      const emptyState = document.getElementById("entryEmptyState");
+      const checkpointRows = document.getElementById("checkpointRows");
+      const verifiedField = document.getElementById("entryVerifiedBy");
+
+      verifiedField.value = currentUser.reportingPerson || "";
+
+      if (!template) {
+        meta.classList.add("hidden");
+        form.classList.add("hidden");
+        emptyState.classList.remove("hidden");
+        checkpointRows.innerHTML = "";
+        return;
+      }
+
+      meta.classList.remove("hidden");
+      form.classList.remove("hidden");
+      emptyState.classList.add("hidden");
+
+      meta.innerHTML = `
+        <div class="card-header">
+          <div>
+            <h3>Selected Template</h3>
+            <p>Uploaded checkpoint list loaded for daily entry.</p>
+          </div>
+        </div>
+        <div class="template-summary">
+          <div class="mini-card"><strong>Module</strong>${template.moduleName}</div>
+          <div class="mini-card"><strong>Part Number</strong>${template.partNo}</div>
+          <div class="mini-card"><strong>Level</strong>${template.level}</div>
+          <div class="mini-card"><strong>Uploaded File</strong>${template.fileName}</div>
+        </div>
+      `;
+
+      checkpointRows.innerHTML = template.checkpoints.map((checkpoint, index) => `
+        <div class="check-row">
+          <div>
+            <strong>${index + 1}. ${checkpoint}</strong>
+          </div>
+          <div class="radio-pair">
+            <label class="radio-pill">
+              <input type="radio" name="status-${index}" value="OK" required />
+              OK
+            </label>
+            <label class="radio-pill">
+              <input type="radio" name="status-${index}" value="Not OK" required />
+              Not OK
+            </label>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function clearEntryForm() {
+      const templateId = document.getElementById("entryTemplateSelect").value;
+      document.getElementById("entryRemarks").value = "";
+      document.getElementById("entryGeneralSerial").value = "";
+      document.getElementById("entryQuantityDone").value = "";
+      document.getElementById("entryVerifiedBy").value = currentUser.reportingPerson || "";
+
+      if (templateId) {
+        renderEntryTemplate();
+      }
+    }
+
+    function handleEntrySubmit(event) {
+      event.preventDefault();
+
+      const templateId = document.getElementById("entryTemplateSelect").value;
+      const template = appState.templates.find((item) => item.id === templateId);
+
+      if (!template) {
+        showToast("Please select a module first.", true);
+        return;
+      }
+
+      const rows = template.checkpoints.map((checkpoint, index) => {
+        const checkedStatus = document.querySelector(`input[name="status-${index}"]:checked`);
+        return {
+          checkpoint,
+          status: checkedStatus ? checkedStatus.value : ""
+        };
+      });
+
+      const missing = rows.some((row) => !row.status);
+      if (missing) {
+        showToast("Please select status for all checkpoints.", true);
+        return;
+      }
+
+      const quantityDoneValue = parseInt(document.getElementById("entryQuantityDone").value.trim(), 10);
+      const quantityDone = Number.isInteger(quantityDoneValue) && quantityDoneValue >= 0 ? quantityDoneValue : 0;
+
+      const entry = {
+        id: "entry-" + Date.now(),
+        templateId: template.id,
+        moduleName: template.moduleName,
+        partNo: template.partNo,
+        level: template.level,
+        date: document.getElementById("entryDate").value,
+        time: document.getElementById("entryTime").value,
+        inspectedBy: currentUser.name,
+        inspectedById: currentUser.employeeId,
+        verifiedBy: document.getElementById("entryVerifiedBy").value.trim(),
+        quantityDone,
+        serialPrefix: document.getElementById("entryGeneralSerial").value.trim(),
+        remarks: document.getElementById("entryRemarks").value.trim(),
+        checkpoints: rows,
+        savedAt: new Date().toISOString()
+      };
+
+      if (!entry.verifiedBy) {
+        showToast("Please enter verified by name.", true);
+        return;
+      }
+
+      appState.entries.push(entry);
+      persistState();
+      downloadEntryPdf(entry.id);
+      refreshCurrentPage();
+      clearEntryForm();
+      showToast("Entry saved and PDF downloaded.");
+    }
+
+    function renderProfile() {
+      const profileWrap = document.getElementById("profileDetails");
+      profileWrap.innerHTML = `
+        <div class="mini-card"><strong>Employee Code</strong>${currentUser.employeeId}</div>
+        <div class="mini-card"><strong>Name</strong>${currentUser.name}</div>
+        <div class="mini-card"><strong>Role</strong>${currentUser.role}</div>
+        <div class="mini-card"><strong>Department</strong>${currentUser.department}</div>
+        <div class="mini-card"><strong>Date of Birth</strong>${currentUser.dob || "-"}</div>
+        <div class="mini-card"><strong>Reporting Person</strong>${currentUser.reportingPerson || "-"}</div>
+      `;
+    }
+
+    function renderTable(headers, rows) {
+      return `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr>
+            </thead>
+            <tbody>
+              ${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function updateClock() {
+      const now = new Date();
+      const parts = formatDateTime(now.toISOString());
+      const topbarDate = document.getElementById("topbarDate");
+      if (topbarDate) {
+        topbarDate.textContent = parts.full;
+      }
+
+      const entryDate = document.getElementById("entryDate");
+      const entryTime = document.getElementById("entryTime");
+      if (entryDate) {
+        entryDate.value = parts.date;
+      }
+      if (entryTime) {
+        entryTime.value = parts.time;
+      }
+    }
+
+    function formatDateTime(value) {
+      const date = new Date(value);
+      const optionsDate = { day: "2-digit", month: "short", year: "numeric" };
+      const optionsTime = { hour: "2-digit", minute: "2-digit", second: "2-digit" };
+      return {
+        date: date.toLocaleDateString("en-GB", optionsDate),
+        time: date.toLocaleTimeString("en-GB", optionsTime),
+        full: date.toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        })
+      };
+    }
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.style.background = isError ? "#a53d37" : "#1f4f32";
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 2600);
+    }
+
+    function findTemplateById(templateId) {
+      return appState.templates.find((template) => template.id === templateId);
+    }
+
+    window.downloadTemplateCheckpoints = function downloadTemplateCheckpoints(templateId) {
+      const template = findTemplateById(templateId);
+      if (!template) {
+        showToast("Template not found.", true);
+        return;
+      }
+
+      const csvLines = ["Checkpoint", ...template.checkpoints].join("\n");
+      downloadTextFile(`${template.partNo}-checkpoints.csv`, csvLines, "text/csv");
+    };
+
+    window.editTemplate = function editTemplate(templateId) {
+      if (!currentUser || currentUser.role !== "admin") {
+        showToast("Only admin can edit templates.", true);
+        return;
+      }
+
+      const template = findTemplateById(templateId);
+      if (!template) {
+        showToast("Template not found.", true);
+        return;
+      }
+
+      document.getElementById("editTemplateForm").dataset.templateId = templateId;
+      document.getElementById("editTemplateName").value = template.moduleName;
+      document.getElementById("editTemplatePartNo").value = template.partNo;
+      document.getElementById("editTemplateLevel").value = template.level;
+      document.getElementById("editTemplateModal").classList.remove("hidden");
+    };
+
+    window.closeEditModal = function closeEditModal() {
+      document.getElementById("editTemplateModal").classList.add("hidden");
+      document.getElementById("editTemplateForm").reset();
+    };
+
+    window.deleteTemplate = function deleteTemplate(templateId) {
+      if (!currentUser || currentUser.role !== "admin") {
+        showToast("Only admin can delete templates.", true);
+        return;
+      }
+
+      const template = findTemplateById(templateId);
+      if (!template) {
+        showToast("Template not found.", true);
+        return;
+      }
+
+      if (confirm(`Are you sure you want to delete the template "${template.moduleName} (${template.partNo})"? This action cannot be undone.`)) {
+        appState.templates = appState.templates.filter((t) => t.id !== templateId);
+        persistState();
+        refreshCurrentPage();
+        showToast("Template deleted successfully.");
+      }
+    };
+
+    async function handleEditTemplateSubmit(event) {
+      event.preventDefault();
+
+      const form = event.target;
+      const templateId = form.dataset.templateId;
+      const template = findTemplateById(templateId);
+
+      if (!template) {
+        showToast("Template not found.", true);
+        return;
+      }
+
+      const moduleName = document.getElementById("editTemplateName").value.trim();
+      const partNo = document.getElementById("editTemplatePartNo").value.trim();
+      const level = document.getElementById("editTemplateLevel").value;
+      const file = document.getElementById("editTemplateFile").files[0];
+
+      const duplicate = appState.templates.some((t) =>
+        t.id !== templateId && t.partNo.toLowerCase() === partNo.toLowerCase()
+      );
+
+      if (duplicate) {
+        showToast("Another template with this part number already exists.", true);
+        return;
+      }
+
+      try {
+        template.moduleName = moduleName;
+        template.partNo = partNo;
+        template.level = level;
+
+        if (file) {
+          const checkpoints = await readCheckpointsFromExcel(file);
+          if (checkpoints.length) {
+            template.checkpoints = checkpoints;
+            template.fileName = file.name;
+          } else {
+            showToast("No checkpoints found in the uploaded file.", true);
+            return;
+          }
+        }
+
+        persistState();
+        closeEditModal();
+        refreshCurrentPage();
+        showToast("Template updated successfully.");
+      } catch (error) {
+        showToast("Error updating template. Please check the file format.", true);
+      }
+    }
+
+    window.downloadEntryPdf = function downloadEntryPdf(entryId) {
+      const entry = appState.entries.find((item) => item.id === entryId);
+      if (!entry) {
+        showToast("Entry not found.", true);
+        return;
+      }
+
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 14;
+      const tableWidth = pageWidth - 2 * margin;
+      const labelWidth = 28;
+      const valueWidth = (tableWidth - labelWidth * 2) / 2;
+      let yPos = 16;
+
+      doc.setFontSize(18);
+      doc.setFont(undefined, "bold");
+      doc.text(["HBL Engineering Ltd.", "Electronics Group"], pageWidth / 2, yPos, { align: "center" });
+
+      const logoImg = document.getElementById("pdfLogo");
+      const logoY = 14;
+      if (logoImg && logoImg.complete && logoImg.naturalWidth) {
+        const logoWidth = 32;
+        const logoHeight = (logoImg.naturalHeight / logoImg.naturalWidth) * logoWidth;
+        const logoX = pageWidth - margin - logoWidth;
+        doc.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight);
+      } else {
+        doc.setFontSize(22);
+        doc.setFont(undefined, "bold");
+        doc.setTextColor(128, 0, 0);
+        doc.text("HBL", pageWidth - margin, logoY, { align: "right" });
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(18);
+        doc.setFont(undefined, "bold");
+      }
+
+      yPos += 20;
+      doc.setDrawColor(128, 0, 0);
+      doc.setLineWidth(1);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 12;
+      doc.setFontSize(11);
+      doc.setFont(undefined, "normal");
+      const headerData = [
+        ["Module:", entry.moduleName, "Part No:", entry.partNo],
+        ["Level:", entry.level, "Date:", entry.date],
+        ["Serial No:", entry.serialPrefix || "-", "Inspected By:", entry.inspectedBy],
+        ["Time:", entry.time, "Verified By:", entry.verifiedBy],
+        ["Qty Done:", entry.quantityDone || "-", "Remarks:", entry.remarks || "-"]
+      ];
+
+      doc.autoTable({
+        startY: yPos,
+        head: [],
+        body: headerData,
+        tableWidth,
+        margin: { left: margin, right: margin },
+        columnStyles: {
+          0: { cellWidth: labelWidth, fontStyle: "bold" },
+          1: { cellWidth: valueWidth, overflow: "linebreak" },
+          2: { cellWidth: labelWidth, fontStyle: "bold" },
+          3: { cellWidth: valueWidth, overflow: "linebreak" }
+        },
+        bodyStyles: {
+          cellPadding: 4,
+          lineColor: [0, 0, 0],
+          lineWidth: 0.5,
+          valign: "middle"
+        }
+      });
+
+      yPos = doc.lastAutoTable.finalY + 8;
+
+      const checkpointHeaders = ["S.No", "Checkpoint", "Status"];
+      const checkpointBody = entry.checkpoints.map((row, index) => [
+        String(index + 1),
+        row.checkpoint,
+        row.status
+      ]);
+
+      doc.autoTable({
+        startY: yPos,
+        head: [checkpointHeaders],
+        body: checkpointBody,
+        tableWidth,
+        margin: { left: margin, right: margin },
+        columnStyles: {
+          0: { cellWidth: 18, halign: "center", overflow: "visible" },
+          1: { cellWidth: tableWidth - 18 - 28, halign: "left", overflow: "linebreak" },
+          2: { cellWidth: 28, halign: "center", overflow: "visible" }
+        },
+        headStyles: {
+          fillColor: [242, 247, 241],
+          textColor: [71, 96, 80],
+          fontStyle: "bold",
+          cellPadding: 5,
+          fontSize: 10,
+          halign: "center",
+          lineColor: [0, 0, 0],
+          lineWidth: 0.5
+        },
+        bodyStyles: {
+          cellPadding: 5,
+          lineColor: [0, 0, 0],
+          lineWidth: 0.5,
+          overflow: "linebreak",
+          valign: "middle"
+        },
+        alternateRowStyles: {
+          fillColor: [251, 253, 249]
+        }
+      });
+
+      yPos = pageHeight - 30;
+      doc.setFontSize(10);
+      doc.setFont(undefined, "normal");
+
+      doc.text(`Inspected By: ${entry.inspectedBy}`, margin, yPos);
+      doc.text(`Date: ${entry.date}`, margin, yPos + 6);
+
+      doc.text(`Verified By: ${entry.verifiedBy}`, pageWidth / 2, yPos);
+      doc.text(`Date: ${entry.date}`, pageWidth / 2, yPos + 6);
+
+      doc.save(`${entry.partNo}-${entry.date.replace(/\s/g, "-")}.pdf`);
+    };
+
+    function downloadTextFile(fileName, content, type) {
+      const blob = new Blob([content], { type });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+  </script>
+</body>
+</html>
