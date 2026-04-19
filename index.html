@@ -584,6 +584,29 @@
       padding: 24px;
     }
 
+    /* Cloudinary upload status badge */
+    .cloud-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .cloud-badge.uploading {
+      background: #fff8e0;
+      color: #8a6000;
+    }
+    .cloud-badge.uploaded {
+      background: #e6f4ea;
+      color: #1f6b3a;
+    }
+    .cloud-badge.failed {
+      background: #fde8e8;
+      color: #9b2c2c;
+    }
+
     @media (max-width: 980px) {
       .login-card,
       .app-shell,
@@ -633,7 +656,7 @@
         <ul class="hero-points">
           <li><span>01</span> Admin creates templates and employee accounts.</li>
           <li><span>02</span> Employees log in with employee ID and password.</li>
-          <li><span>03</span> Daily entries are stored locally and exported as PDF.</li>
+          <li><span>03</span> Daily entries are stored locally and exported as PDF — now also uploaded to Cloudinary.</li>
         </ul>
       </section>
 
@@ -656,8 +679,7 @@
         </form>
 
         <div class="note-card">
-          This app can now store demo data in Firebase Firestore when you add your Firebase config.
-          Until then, it still keeps a local copy in <code>localStorage</code> for demo use.
+          PDFs are now automatically uploaded to <strong>Cloudinary</strong> when an entry is saved. The Cloudinary URL is stored in Firestore for easy access and sharing.
         </div>
 
         <div class="credentials">
@@ -1064,6 +1086,15 @@
   <img id="pdfLogo" src="hbl-logo.png" alt="HBL Logo" class="hidden" />
 
   <script>
+    // ─────────────────────────────────────────────
+    // CLOUDINARY CONFIG — replace with your values
+    // ─────────────────────────────────────────────
+    const CLOUDINARY_CLOUD_NAME = "djuasinnj";       // e.g. "mycompany"
+    const CLOUDINARY_UPLOAD_PRESET = "checksheet_upload"; // unsigned preset name
+
+    // ─────────────────────────────────────────────
+    // FIREBASE CONFIG
+    // ─────────────────────────────────────────────
     const useFirebase = true;
     const FIREBASE_CONFIG = {
       apiKey: "AIzaSyBA56ooEYl-BNFtH7alEfyMuknXaIapulg",
@@ -1118,6 +1149,61 @@
       } catch (error) {
         console.error("Firebase initialization failed:", error);
         return false;
+      }
+    }
+
+    // ─────────────────────────────────────────────
+    // CLOUDINARY UPLOAD FUNCTION
+    // Uploads a PDF blob to Cloudinary and returns
+    // the secure public URL of the uploaded file.
+    // ─────────────────────────────────────────────
+    async function uploadPdfToCloudinary(pdfBlob, fileName) {
+      const cloudinaryConfigured =
+        CLOUDINARY_CLOUD_NAME && !CLOUDINARY_CLOUD_NAME.includes("YOUR_") &&
+        CLOUDINARY_UPLOAD_PRESET && !CLOUDINARY_UPLOAD_PRESET.includes("YOUR_");
+
+      if (!cloudinaryConfigured) {
+        console.warn("Cloudinary not configured. Skipping upload.");
+        return null;
+      }
+
+      const formData = new FormData();
+      formData.append("file", pdfBlob, fileName);
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+      formData.append("resource_type", "raw"); // required for PDFs
+      formData.append("folder", "checksheets");
+      formData.append("public_id", fileName.replace(".pdf", "")); // use filename as ID
+
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`;
+
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error("Cloudinary upload failed: " + errText);
+      }
+
+      const data = await response.json();
+      return data.secure_url; // public HTTPS URL to the PDF
+    }
+
+    // ─────────────────────────────────────────────
+    // SAVE PDF URL TO FIRESTORE (after Cloudinary upload)
+    // ─────────────────────────────────────────────
+    async function savePdfUrlToFirestore(entryId, pdfUrl) {
+      if (!db) return;
+      try {
+        // Save to a dedicated "pdfUploads" collection for easy retrieval
+        await db.collection("pdfUploads").doc(entryId).set({
+          entryId,
+          pdfUrl,
+          uploadedAt: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error("Failed to save PDF URL to Firestore:", error);
       }
     }
 
@@ -1439,7 +1525,7 @@
       }
 
       wrap.innerHTML = renderTable(
-        ["S.No", "Part No", "Module", "Date", "Inspected By", "Verified By", "Download"],
+        ["S.No", "Part No", "Module", "Date", "Inspected By", "Verified By", "Cloud PDF", "Download"],
         entries.map((entry, index) => [
           index + 1,
           entry.partNo,
@@ -1447,7 +1533,10 @@
           formatDateTime(entry.savedAt).date,
           entry.inspectedBy,
           entry.verifiedBy,
-          `<button class="ghost-btn" type="button" onclick="downloadEntryPdf('${entry.id}')">Download</button>`
+          entry.pdfUrl
+            ? `<a href="${entry.pdfUrl}" target="_blank" class="ghost-btn" style="padding:6px 12px;font-size:12px;text-decoration:none;display:inline-block;">☁ View</a>`
+            : `<span style="color:#aaa;font-size:12px;">Not uploaded</span>`,
+          `<button class="ghost-btn" type="button" style="padding:8px 12px;font-size:12px;" onclick="downloadEntryPdf('${entry.id}')">Download</button>`
         ])
       );
     }
@@ -1471,13 +1560,16 @@
       }
 
       resultsWrap.innerHTML = renderTable(
-        ["S.No", "Part No", "Module", "Saved On", "Inspected By", "Download"],
+        ["S.No", "Part No", "Module", "Saved On", "Inspected By", "Cloud PDF", "Download"],
         entries.map((entry, index) => [
           index + 1,
           entry.partNo,
           entry.moduleName,
           formatDateTime(entry.savedAt).full,
           entry.inspectedBy,
+          entry.pdfUrl
+            ? `<a href="${entry.pdfUrl}" target="_blank" class="ghost-btn" style="padding:6px 12px;font-size:12px;text-decoration:none;display:inline-block;">☁ View</a>`
+            : `<span style="color:#aaa;font-size:12px;">Not uploaded</span>`,
           `<button class="ghost-btn" type="button" onclick="downloadEntryPdf('${entry.id}')">Download PDF</button>`
         ])
       );
@@ -1755,7 +1847,11 @@
       }
     }
 
-    function handleEntrySubmit(event) {
+    // ─────────────────────────────────────────────
+    // ENTRY SUBMIT — generates PDF, downloads it,
+    // and uploads it to Cloudinary in background
+    // ─────────────────────────────────────────────
+    async function handleEntrySubmit(event) {
       event.preventDefault();
 
       const templateId = document.getElementById("entryTemplateSelect").value;
@@ -1798,7 +1894,8 @@
         serialPrefix: document.getElementById("entryGeneralSerial").value.trim(),
         remarks: document.getElementById("entryRemarks").value.trim(),
         checkpoints: rows,
-        savedAt: new Date().toISOString()
+        savedAt: new Date().toISOString(),
+        pdfUrl: null // will be set after Cloudinary upload
       };
 
       if (!entry.verifiedBy) {
@@ -1808,10 +1905,40 @@
 
       appState.entries.push(entry);
       persistState();
-      downloadEntryPdf(entry.id);
+
+      // Step 1: Generate and download PDF locally
+      const { doc, fileName } = generatePdfDoc(entry);
+      doc.save(fileName);
+
       refreshCurrentPage();
       clearEntryForm();
-      showToast("Entry saved and PDF downloaded.");
+      showToast("Entry saved. Uploading PDF to Cloudinary...");
+
+      // Step 2: Upload to Cloudinary in background
+      try {
+        const pdfBlob = doc.output("blob");
+        const pdfUrl = await uploadPdfToCloudinary(pdfBlob, fileName);
+
+        if (pdfUrl) {
+          // Save URL back into the entry
+          const savedEntry = appState.entries.find((e) => e.id === entry.id);
+          if (savedEntry) {
+            savedEntry.pdfUrl = pdfUrl;
+            persistState();
+          }
+
+          // Also save URL to Firestore pdfUploads collection
+          await savePdfUrlToFirestore(entry.id, pdfUrl);
+
+          refreshCurrentPage();
+          showToast("PDF uploaded to Cloudinary successfully!");
+        } else {
+          showToast("Cloudinary not configured. PDF saved locally only.");
+        }
+      } catch (error) {
+        console.error("Cloudinary upload error:", error);
+        showToast("PDF downloaded locally. Cloud upload failed.", true);
+      }
     }
 
     function renderProfile() {
@@ -2019,13 +2146,11 @@
       }
     }
 
-    window.downloadEntryPdf = function downloadEntryPdf(entryId) {
-      const entry = appState.entries.find((item) => item.id === entryId);
-      if (!entry) {
-        showToast("Entry not found.", true);
-        return;
-      }
-
+    // ─────────────────────────────────────────────
+    // GENERATE PDF DOCUMENT (shared by download + upload)
+    // Returns { doc, fileName }
+    // ─────────────────────────────────────────────
+    function generatePdfDoc(entry) {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
@@ -2143,7 +2268,40 @@
       doc.text(`Verified By: ${entry.verifiedBy}`, pageWidth / 2, yPos);
       doc.text(`Date: ${entry.date}`, pageWidth / 2, yPos + 6);
 
-      doc.save(`${entry.partNo}-${entry.date.replace(/\s/g, "-")}.pdf`);
+      const fileName = `${entry.partNo}-${entry.date.replace(/\s/g, "-")}.pdf`;
+      return { doc, fileName };
+    }
+
+    // ─────────────────────────────────────────────
+    // DOWNLOAD EXISTING ENTRY PDF
+    // Also re-attempts Cloudinary upload if not yet uploaded
+    // ─────────────────────────────────────────────
+    window.downloadEntryPdf = async function downloadEntryPdf(entryId) {
+      const entry = appState.entries.find((item) => item.id === entryId);
+      if (!entry) {
+        showToast("Entry not found.", true);
+        return;
+      }
+
+      const { doc, fileName } = generatePdfDoc(entry);
+      doc.save(fileName);
+
+      // If PDF was never uploaded to Cloudinary, try again now
+      if (!entry.pdfUrl) {
+        try {
+          const pdfBlob = doc.output("blob");
+          const pdfUrl = await uploadPdfToCloudinary(pdfBlob, fileName);
+          if (pdfUrl) {
+            entry.pdfUrl = pdfUrl;
+            persistState();
+            await savePdfUrlToFirestore(entry.id, pdfUrl);
+            refreshCurrentPage();
+            showToast("PDF downloaded and uploaded to Cloudinary!");
+          }
+        } catch (error) {
+          console.error("Cloudinary re-upload error:", error);
+        }
+      }
     };
 
     function downloadTextFile(fileName, content, type) {
