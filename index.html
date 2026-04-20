@@ -361,7 +361,7 @@
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 18px;
     }
 
@@ -472,7 +472,7 @@
 
     .three-col {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 16px;
     }
 
@@ -584,28 +584,6 @@
       padding: 24px;
     }
 
-    /* Cloudinary upload status badge */
-    .cloud-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-weight: 600;
-    }
-    .cloud-badge.uploading {
-      background: #fff8e0;
-      color: #8a6000;
-    }
-    .cloud-badge.uploaded {
-      background: #e6f4ea;
-      color: #1f6b3a;
-    }
-    .cloud-badge.failed {
-      background: #fde8e8;
-      color: #9b2c2c;
-    }
 
     @media (max-width: 980px) {
       .login-card,
@@ -656,7 +634,7 @@
         <ul class="hero-points">
           <li><span>01</span> Admin creates templates and employee accounts.</li>
           <li><span>02</span> Employees log in with employee ID and password.</li>
-          <li><span>03</span> Daily entries are stored locally and exported as PDF — now also uploaded to Cloudinary.</li>
+          <li><span>03</span> Daily entries are stored and exported as PDF — automatically backed up to Cloudinary.</li>
         </ul>
       </section>
 
@@ -679,7 +657,7 @@
         </form>
 
         <div class="note-card">
-          PDFs are now automatically uploaded to <strong>Cloudinary</strong> when an entry is saved. The Cloudinary URL is stored in Firestore for easy access and sharing.
+          This app stores data in Firebase Firestore when configured. Until then, it keeps a local copy in <code>localStorage</code> for demo use.
         </div>
 
         <div class="credentials">
@@ -750,25 +728,36 @@
             <div class="metric" id="totalTemplatesMetric">0</div>
             <div class="metric-note">No duplicate part numbers allowed.</div>
           </article>
+          <article class="card">
+            <h3>Total Entries</h3>
+            <div class="metric" id="totalEntriesMetric">0</div>
+            <div class="metric-note">All check sheet entries submitted.</div>
+          </article>
         </div>
 
         <div class="table-card">
           <div class="card-header">
             <div>
-              <h3>Search Previous Check Sheets</h3>
-              <p>Search by module part number and download previously entered reports.</p>
+              <h3>Search Check Sheets</h3>
+              <p>Search by serial number, module name, or part number.</p>
             </div>
           </div>
-
           <div class="toolbar">
             <div class="field">
-              <label for="dashboardSearchPart">Module Part Number</label>
-              <input id="dashboardSearchPart" type="text" placeholder="Enter part number" />
+              <label for="dashboardSearchSerial">Serial Number</label>
+              <input id="dashboardSearchSerial" type="text" placeholder="Serial number" />
+            </div>
+            <div class="field">
+              <label for="dashboardSearchModule">Module Name</label>
+              <input id="dashboardSearchModule" type="text" placeholder="Module name" />
+            </div>
+            <div class="field">
+              <label for="dashboardSearchPart">Part Number</label>
+              <input id="dashboardSearchPart" type="text" placeholder="Part number" />
             </div>
             <button id="dashboardSearchButton" class="action-btn" type="button">Search</button>
             <button id="dashboardSearchClearButton" class="ghost-btn" type="button">Clear</button>
           </div>
-
           <div id="dashboardSearchResults"></div>
         </div>
 
@@ -776,10 +765,11 @@
           <div class="card-header">
             <div>
               <h3>Recently Entered Data</h3>
-              <p>Latest saved daily check sheets.</p>
+              <p>Latest check sheets — all employees.</p>
             </div>
           </div>
           <div id="recentEntriesWrap"></div>
+          <div id="recentPagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 0;font-size:13px;color:#66776b;flex-wrap:wrap;gap:8px;"></div>
         </div>
       </section>
 
@@ -993,8 +983,8 @@
               <input id="entryVerifiedBy" type="text" placeholder="Reporting person name" required />
             </div>
             <div class="field">
-              <label for="entryGeneralSerial">Serial Number Prefix</label>
-              <input id="entryGeneralSerial" type="text" placeholder="Enter inspected serial number" />
+              <label for="entryGeneralSerial">Serial Number</label>
+              <input id="entryGeneralSerial" type="text" placeholder="Enter serial number" />
             </div>
           </div>
 
@@ -1110,7 +1100,8 @@
     const { jsPDF } = window.jspdf;
 
     let db = null;
-    let appState = { seeded: false, users: [], templates: [], entries: [] };
+    let appState = { seeded: false, users: [], templates: [] };
+    let firestoreEntries = []; // loaded from Firestore, never stored in appState
     let currentUser = null;
 
     initializeApp();
@@ -1173,7 +1164,6 @@
       formData.append("resource_type", "raw"); // required for PDFs
       formData.append("folder", "checksheets");
 
-
       const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`;
 
       const response = await fetch(uploadUrl, {
@@ -1190,38 +1180,15 @@
       return data.secure_url; // public HTTPS URL to the PDF
     }
 
-    // ─────────────────────────────────────────────
-    // SAVE PDF URL TO FIRESTORE (after Cloudinary upload)
-    // ─────────────────────────────────────────────
-    async function savePdfUrlToFirestore(entryId, pdfUrl) {
-      if (!db) return;
-      try {
-        // Save to a dedicated "pdfUploads" collection for easy retrieval
-        await db.collection("pdfUploads").doc(entryId).set({
-          entryId,
-          pdfUrl,
-          uploadedAt: new Date().toISOString()
-        });
-      } catch (error) {
-        console.error("Failed to save PDF URL to Firestore:", error);
-      }
-    }
+    // savePdfUrlToFirestore removed — pdfUrl is updated directly in modules/{mod}/entries/{id}
 
     function loadStateFromLocal() {
       try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
-          seeded: false,
-          users: [],
-          templates: [],
-          entries: []
-        };
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { seeded: false, users: [], templates: [] };
+        delete stored.entries; // never keep entries in local state
+        return stored;
       } catch (error) {
-        return {
-          seeded: false,
-          users: [],
-          templates: [],
-          entries: []
-        };
+        return { seeded: false, users: [], templates: [] };
       }
     }
 
@@ -1249,9 +1216,38 @@
         appState = localState;
         return;
       }
-
       const remoteState = await loadStateFromFirestore();
       appState = remoteState || localState;
+      // Entries live only in Firestore — load them separately
+      await loadEntriesFromFirestore();
+    }
+
+    async function loadEntriesFromFirestore() {
+      if (!db) { firestoreEntries = []; return; }
+      try {
+        // Fetch all entries across all module sub-collections via collectionGroup
+        const snap = await db.collectionGroup("entries")
+          .orderBy("savedAt", "desc")
+          .limit(200)
+          .get();
+        firestoreEntries = snap.docs.map(d => d.data());
+      } catch (e) {
+        console.warn("collectionGroup query needs Firestore index — falling back to per-module fetch");
+        // Fallback: fetch from each module folder individually
+        try {
+          const modulesSnap = await db.collection("modules").get();
+          const all = [];
+          for (const modDoc of modulesSnap.docs) {
+            const eSnap = await db.collection("modules").doc(modDoc.id)
+              .collection("entries").orderBy("savedAt", "desc").get();
+            eSnap.docs.forEach(d => all.push(d.data()));
+          }
+          firestoreEntries = all.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+        } catch (e2) {
+          console.error("Entry load failed:", e2);
+          firestoreEntries = [];
+        }
+      }
     }
 
     function saveStateToFirestore() {
@@ -1316,7 +1312,6 @@
             fileName: "motor-housing.xlsx"
           }
         ],
-        entries: []
       };
 
       persistState();
@@ -1328,7 +1323,8 @@
       if (db) {
         await db.collection("appState").doc("main").delete().catch(() => {});
       }
-      appState = { seeded: false, users: [], templates: [], entries: [] };
+      appState = { seeded: false, users: [], templates: [] };
+      firestoreEntries = [];
       currentUser = null;
       seedDemoData();
       renderApp();
@@ -1362,6 +1358,9 @@
       bindEvent("clearEntryButton", "click", clearEntryForm);
       bindEvent("dashboardSearchButton", "click", renderDashboardSearch);
       bindEvent("dashboardSearchClearButton", "click", clearDashboardSearch);
+      bindEvent("dashboardSearchSerial", "keydown", (e) => { if (e.key==="Enter") renderDashboardSearch(); });
+      bindEvent("dashboardSearchModule", "keydown", (e) => { if (e.key==="Enter") renderDashboardSearch(); });
+      bindEvent("dashboardSearchPart",   "keydown", (e) => { if (e.key==="Enter") renderDashboardSearch(); });
       bindEvent("editTemplateForm", "submit", handleEditTemplateSubmit);
 
       document.querySelectorAll(".nav-link").forEach((button) => {
@@ -1501,6 +1500,8 @@
       document.getElementById("totalModulesMetric").textContent = getModuleCount();
       document.getElementById("totalUsersMetric").textContent = appState.users.length;
       document.getElementById("totalTemplatesMetric").textContent = appState.templates.length;
+      const totalEntriesEl = document.getElementById("totalEntriesMetric");
+      if (totalEntriesEl) totalEntriesEl.textContent = firestoreEntries.length;
       renderRecentEntries();
       renderDashboardSearch();
     }
@@ -1509,75 +1510,99 @@
       return new Set(appState.templates.map((template) => template.moduleName)).size;
     }
 
+    let recentPage = 1;
+    const PAGE_SIZE = 10;
+
     function renderRecentEntries() {
       const wrap = document.getElementById("recentEntriesWrap");
-      let entries = [...appState.entries].sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+      const pagination = document.getElementById("recentPagination");
+      const entries = [...firestoreEntries].sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+      const total = entries.length;
 
-      if (currentUser.role !== "admin") {
-        entries = entries.filter((entry) => entry.inspectedById === currentUser.employeeId);
-      }
-
-      entries = entries.slice(0, 5);
-
-      if (!entries.length) {
+      if (!total) {
         wrap.innerHTML = '<div class="empty-state">No recently entered data yet.</div>';
+        if (pagination) pagination.innerHTML = "";
         return;
       }
 
+      const totalPages = Math.ceil(total / PAGE_SIZE);
+      if (recentPage > totalPages) recentPage = totalPages;
+      const start = (recentPage - 1) * PAGE_SIZE;
+      const pageEntries = entries.slice(start, start + PAGE_SIZE);
+
       wrap.innerHTML = renderTable(
-        ["S.No", "Part No", "Module", "Date", "Inspected By", "Verified By", "Cloud PDF", "Download"],
-        entries.map((entry, index) => [
-          index + 1,
+        ["S.No", "Serial No", "Part No", "Module", "Date", "Inspected By", "Verified By", "Download"],
+        pageEntries.map((entry, index) => [
+          start + index + 1,
+          entry.serialPrefix || "-",
           entry.partNo,
           entry.moduleName,
           formatDateTime(entry.savedAt).date,
           entry.inspectedBy,
           entry.verifiedBy,
-          entry.pdfUrl
-            ? `<a href="${entry.pdfUrl}" target="_blank" class="ghost-btn" style="padding:6px 12px;font-size:12px;text-decoration:none;display:inline-block;">☁ View</a>`
-            : `<span style="color:#aaa;font-size:12px;">Not uploaded</span>`,
           `<button class="ghost-btn" type="button" style="padding:8px 12px;font-size:12px;" onclick="downloadEntryPdf('${entry.id}')">Download</button>`
         ])
       );
+
+      if (pagination) {
+        const from = start + 1;
+        const to = Math.min(start + PAGE_SIZE, total);
+        pagination.innerHTML = `
+          <span>${from} to ${to} of ${total} entries</span>
+          <div style="display:flex;gap:8px;">
+            <button class="ghost-btn" style="padding:6px 14px;font-size:13px;" onclick="changeRecentPage(-1)" ${recentPage===1?"disabled style='opacity:0.4;cursor:default;'":""}}>&lt;</button>
+            <button class="ghost-btn" style="padding:6px 14px;font-size:13px;" onclick="changeRecentPage(1)" ${recentPage===totalPages?"disabled style='opacity:0.4;cursor:default;'":""}}>&gt;</button>
+          </div>`;
+      }
     }
 
+    window.changeRecentPage = function(dir) {
+      recentPage += dir;
+      renderRecentEntries();
+    };
+
     function renderDashboardSearch() {
-      const searchValue = document.getElementById("dashboardSearchPart").value.trim().toLowerCase();
+      const serialVal = (document.getElementById("dashboardSearchSerial") || {value:""}).value.trim().toLowerCase();
+      const moduleVal = (document.getElementById("dashboardSearchModule") || {value:""}).value.trim().toLowerCase();
+      const partVal   = document.getElementById("dashboardSearchPart").value.trim().toLowerCase();
       const resultsWrap = document.getElementById("dashboardSearchResults");
 
-      let entries = [...appState.entries];
-      if (currentUser.role !== "admin") {
-        entries = entries.filter((entry) => entry.inspectedById === currentUser.employeeId);
+      if (!serialVal && !moduleVal && !partVal) {
+        resultsWrap.innerHTML = "";
+        return;
       }
 
-      if (searchValue) {
-        entries = entries.filter((entry) => entry.partNo.toLowerCase().includes(searchValue));
-      }
+      let entries = [...firestoreEntries].sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+      if (serialVal) entries = entries.filter(e => (e.serialPrefix || "").toLowerCase().includes(serialVal));
+      if (moduleVal) entries = entries.filter(e => e.moduleName.toLowerCase().includes(moduleVal));
+      if (partVal)   entries = entries.filter(e => e.partNo.toLowerCase().includes(partVal));
 
       if (!entries.length) {
-        resultsWrap.innerHTML = '<div class="empty-state">No previous check sheet found for this search.</div>';
+        resultsWrap.innerHTML = '<div class="empty-state">No check sheet found for this search.</div>';
         return;
       }
 
       resultsWrap.innerHTML = renderTable(
-        ["S.No", "Part No", "Module", "Saved On", "Inspected By", "Cloud PDF", "Download"],
+        ["S.No", "Serial No", "Part No", "Module", "Saved On", "Inspected By", "Download"],
         entries.map((entry, index) => [
           index + 1,
+          entry.serialPrefix || "-",
           entry.partNo,
           entry.moduleName,
           formatDateTime(entry.savedAt).full,
           entry.inspectedBy,
-          entry.pdfUrl
-            ? `<a href="${entry.pdfUrl}" target="_blank" class="ghost-btn" style="padding:6px 12px;font-size:12px;text-decoration:none;display:inline-block;">☁ View</a>`
-            : `<span style="color:#aaa;font-size:12px;">Not uploaded</span>`,
           `<button class="ghost-btn" type="button" onclick="downloadEntryPdf('${entry.id}')">Download PDF</button>`
         ])
       );
     }
 
     function clearDashboardSearch() {
+      const s = document.getElementById("dashboardSearchSerial");
+      const m = document.getElementById("dashboardSearchModule");
+      if (s) s.value = "";
+      if (m) m.value = "";
       document.getElementById("dashboardSearchPart").value = "";
-      renderDashboardSearch();
+      document.getElementById("dashboardSearchResults").innerHTML = "";
     }
 
     function handleEmployeeCreate(event) {
@@ -1675,7 +1700,7 @@
           return;
         }
 
-        appState.templates.push({
+        const newTpl = {
           id: "tpl-" + Date.now(),
           moduleName: document.getElementById("templateModuleName").value.trim(),
           partNo,
@@ -1683,9 +1708,22 @@
           createdOn: new Date().toISOString(),
           checkpoints,
           fileName: file.name
-        });
-
+        };
+        appState.templates.push(newTpl);
         persistState();
+
+        // Create module folder in Firestore when template is created
+        if (db) {
+          const folderKey = newTpl.moduleName.replace(/[^a-zA-Z0-9]/g, "_");
+          db.collection("modules").doc(folderKey).set({
+            moduleName: newTpl.moduleName,
+            partNo: newTpl.partNo,
+            level: newTpl.level,
+            templateId: newTpl.id,
+            createdOn: newTpl.createdOn
+          }, { merge: true }).catch(e => console.error("Module folder create failed:", e));
+        }
+
         document.getElementById("templateForm").reset();
         refreshCurrentPage();
         showToast("Template created successfully.");
@@ -1893,9 +1931,8 @@
         quantityDone,
         serialPrefix: document.getElementById("entryGeneralSerial").value.trim(),
         remarks: document.getElementById("entryRemarks").value.trim(),
-        checkpoints: rows,
-        savedAt: new Date().toISOString(),
-        pdfUrl: null // will be set after Cloudinary upload
+        checkpoints: rows, // used locally for PDF generation only — NOT stored in DB
+        savedAt: new Date().toISOString()
       };
 
       if (!entry.verifiedBy) {
@@ -1903,32 +1940,70 @@
         return;
       }
 
-      appState.entries.push(entry);
-      persistState();
+      // Build lean entry — only statuses, no checkpoint text repeated
+      const results = entry.checkpoints.map(r => r.status);
+      const leanEntry = {
+        id: entry.id,
+        templateId: entry.templateId,
+        moduleName: entry.moduleName,
+        partNo: entry.partNo,
+        level: entry.level,
+        date: entry.date,
+        time: entry.time,
+        inspectedBy: entry.inspectedBy,
+        inspectedById: entry.inspectedById,
+        verifiedBy: entry.verifiedBy,
+        quantityDone: entry.quantityDone,
+        serialPrefix: entry.serialPrefix,
+        remarks: entry.remarks,
+        results,          // ["OK","Not OK",...] — no checkpoint text stored
+        savedAt: entry.savedAt,
+        pdfUrl: null
+      };
 
-      // Step 1: Generate PDF — capture blob FIRST before any save() call
-      const { doc, fileName } = generatePdfDoc(entry);
-      const pdfBlob = doc.output("blob"); // must be called before doc.save()
+      // Save ONLY to Firestore module collection — NOT in appState
+      if (db) {
+        const folderKey = entry.moduleName.replace(/[^a-zA-Z0-9]/g, "_");
+        try {
+          await db.collection("modules").doc(folderKey)
+            .collection("entries").doc(entry.id).set(leanEntry);
+          firestoreEntries.unshift(leanEntry); // update local cache
+        } catch (e) {
+          console.error("Entry save failed:", e);
+          showToast("Failed to save entry to database.", true);
+          return;
+        }
+      } else {
+        // No Firebase — keep in memory only for this session
+        firestoreEntries.unshift(leanEntry);
+      }
 
-      // Step 2: Download to system
+      // Generate PDF — capture blob before save()
+      const serialSafe = (entry.serialPrefix || "noSerial").replace(/[^a-zA-Z0-9]/g, "-");
+      const moduleSafe = entry.moduleName.replace(/[^a-zA-Z0-9]/g, "-");
+      const partSafe = entry.partNo.replace(/[^a-zA-Z0-9]/g, "-");
+      const fileName = `${partSafe}_${moduleSafe}_${serialSafe}.pdf`;
+      const { doc } = generatePdfDoc(entry);
+      const pdfBlob = doc.output("blob");
       doc.save(fileName);
 
       refreshCurrentPage();
       clearEntryForm();
       showToast("Entry saved and PDF downloaded.");
 
-      // Step 3: Upload same blob to Cloudinary in background
+      // Upload to Cloudinary silently, update pdfUrl in Firestore
       try {
         const pdfUrl = await uploadPdfToCloudinary(pdfBlob, fileName);
-
         if (pdfUrl) {
-          const savedEntry = appState.entries.find((e) => e.id === entry.id);
-          if (savedEntry) {
-            savedEntry.pdfUrl = pdfUrl;
-            persistState();
+          leanEntry.pdfUrl = pdfUrl;
+          const cached = firestoreEntries.find(e => e.id === leanEntry.id);
+          if (cached) cached.pdfUrl = pdfUrl;
+          if (db) {
+            const folderKey = entry.moduleName.replace(/[^a-zA-Z0-9]/g, "_");
+            db.collection("modules").doc(folderKey)
+              .collection("entries").doc(entry.id)
+              .update({ pdfUrl }).catch(e => console.error("pdfUrl update failed:", e));
           }
-          await savePdfUrlToFirestore(entry.id, pdfUrl);
-          console.log("PDF uploaded to Cloudinary:", pdfUrl);
         }
       } catch (error) {
         console.error("Cloudinary upload error:", error);
@@ -2262,8 +2337,7 @@
       doc.text(`Verified By: ${entry.verifiedBy}`, pageWidth / 2, yPos);
       doc.text(`Date: ${entry.date}`, pageWidth / 2, yPos + 6);
 
-      const fileName = `${entry.partNo}-${entry.date.replace(/\s/g, "-")}.pdf`;
-      return { doc, fileName };
+      return { doc };
     }
 
     // ─────────────────────────────────────────────
@@ -2271,26 +2345,42 @@
     // Also re-attempts Cloudinary upload if not yet uploaded
     // ─────────────────────────────────────────────
     window.downloadEntryPdf = async function downloadEntryPdf(entryId) {
-      const entry = appState.entries.find((item) => item.id === entryId);
+      // Look up from firestoreEntries cache (never from appState)
+      let entry = firestoreEntries.find((item) => item.id === entryId);
       if (!entry) {
         showToast("Entry not found.", true);
         return;
       }
 
-      const { doc, fileName } = generatePdfDoc(entry);
-      const pdfBlob = doc.output("blob"); // capture blob before save()
+      // Reconstruct checkpoints array from template + results for PDF
+      const template = appState.templates.find(t => t.id === entry.templateId);
+      const checkpoints = template
+        ? template.checkpoints.map((cp, i) => ({ checkpoint: cp, status: (entry.results || [])[i] || "-" }))
+        : (entry.results || []).map((s, i) => ({ checkpoint: `Checkpoint ${i+1}`, status: s }));
 
-      // Download to system
+      const entryForPdf = { ...entry, checkpoints };
+
+      const serialSafe = (entry.serialPrefix || "noSerial").replace(/[^a-zA-Z0-9]/g, "-");
+      const moduleSafe = entry.moduleName.replace(/[^a-zA-Z0-9]/g, "-");
+      const partSafe = entry.partNo.replace(/[^a-zA-Z0-9]/g, "-");
+      const fileName = `${partSafe}_${moduleSafe}_${serialSafe}.pdf`;
+
+      const { doc } = generatePdfDoc(entryForPdf);
+      const pdfBlob = doc.output("blob");
       doc.save(fileName);
 
-      // If PDF was never uploaded to Cloudinary, try silently in background
+      // Re-upload to Cloudinary if not yet uploaded
       if (!entry.pdfUrl) {
         try {
           const pdfUrl = await uploadPdfToCloudinary(pdfBlob, fileName);
           if (pdfUrl) {
             entry.pdfUrl = pdfUrl;
-            persistState();
-            await savePdfUrlToFirestore(entry.id, pdfUrl);
+            if (db) {
+              const folderKey = entry.moduleName.replace(/[^a-zA-Z0-9]/g, "_");
+              db.collection("modules").doc(folderKey)
+                .collection("entries").doc(entry.id)
+                .update({ pdfUrl }).catch(e => console.error("pdfUrl update failed:", e));
+            }
           }
         } catch (error) {
           console.error("Cloudinary re-upload error:", error);
