@@ -2038,16 +2038,20 @@
       // ── Collect checkpoint statuses, per-row remarks and rework S/Ns ──────
       const rows = template.checkpoints.map((checkpoint, index) => {
         const checkedStatus = document.querySelector(`input[name="status-${index}"]:checked`);
-        const remarkEl  = document.querySelector(`[name="remark-${index}"]`);
+        const remarkEl   = document.querySelector(`[name="remark-${index}"]`);
         const reworkSnEl = document.querySelector(`[name="reworksn-${index}"]`);
+        // Accept 1-7 digit entries and zero-pad to 7 so they match last7 in the loop
+        const reworkSNs = reworkSnEl
+          ? reworkSnEl.value.split(",")
+              .map(s => s.trim())
+              .filter(s => /^\d{1,7}$/.test(s))
+              .map(s => s.padStart(7, "0"))
+          : [];
         return {
           checkpoint,
           status: checkedStatus ? checkedStatus.value : "",
           remark: remarkEl ? remarkEl.value.trim() : "",
-          // parse comma-separated last-7 digit S/Ns into an array
-          reworkSNs: reworkSnEl
-            ? reworkSnEl.value.split(",").map(s => s.trim()).filter(s => /^\d{7}$/.test(s))
-            : []
+          reworkSNs
         };
       });
 
@@ -2067,7 +2071,10 @@
       const generalRemark   = document.getElementById("entryGeneralRemarks").value.trim();
       const generalRemarkSNRaw = document.getElementById("entryGeneralRemarksSN").value.trim();
       const generalRemarkSNs = generalRemarkSNRaw
-        ? generalRemarkSNRaw.split(",").map(s => s.trim()).filter(s => /^\d{7}$/.test(s))
+        ? generalRemarkSNRaw.split(",")
+            .map(s => s.trim())
+            .filter(s => /^\d{1,7}$/.test(s))
+            .map(s => s.padStart(7, "0"))
         : []; // empty = applies to ALL
 
       // ── Serial Number range from Start + Qty ──────────────────────────────
@@ -2198,8 +2205,9 @@
           firestoreEntries.unshift(leanEntry);
         }
 
-        // Generate individual PDF
-        const snSafe   = fullSN.replace(/[^a-zA-Z0-9]/g, "-");
+        // Generate individual PDF — Bug 7: filename = partNo_module_serialDigits (no "S-N" prefix)
+        const serialDigits = fullSN.replace(/^S\/N\s*-\s*/i, "");
+        const snSafe   = serialDigits.replace(/[^a-zA-Z0-9]/g, "");
         const fileName = `${partSafe}_${moduleSafe}_${snSafe}.pdf`;
         const { doc }  = generatePdfDoc(entry);
         const pdfBlob  = doc.output("blob");
@@ -2485,14 +2493,15 @@
       doc.line(margin, yPos, pageWidth - margin, yPos);
       yPos += 12;
 
-      // ── Info table (no Remarks row — moved to checkpoint level) ───────────
+      // ── Info table — Bug 6: strip "S/N - " prefix, show only digits ──────
+      const rawSerial = (entry.serialPrefix || "-").replace(/^S\/N\s*-\s*/i, "");
       doc.setFontSize(11);
       doc.setFont(undefined, "normal");
       const headerData = [
-        ["Module:",      entry.moduleName,         "Part No:",      entry.partNo],
-        ["Level:",       entry.level,               "Date:",         entry.date],
-        ["Serial No:",   entry.serialPrefix || "-", "Inspected By:", entry.inspectedBy],
-        ["Time:",        entry.time,                "Verified By:",  entry.verifiedBy],
+        ["Module:",        entry.moduleName,   "Part No:",      entry.partNo],
+        ["Level:",         entry.level,         "Date:",         entry.date],
+        ["Serial No:",     rawSerial,           "Inspected By:", entry.inspectedBy],
+        ["Time:",          entry.time,           "Verified By:",  entry.verifiedBy],
         ["Qty Inspected:", String(entry.quantityDone || "-"), "", ""]
       ];
 
@@ -2518,18 +2527,21 @@
 
       yPos = doc.lastAutoTable.finalY + 8;
 
-      // ── Checkpoint table with inline Remarks column ───────────────────────
-      const snCol    = 12;
+      // ── Checkpoint table ──────────────────────────────────────────────────
+      // Bug 5: "S.No" wraps — use "No" for the index column header
+      // Bug 8: auto column widths, smaller font, left-align checkpoint text
+      // Column widths: No=10, Status=22, Remarks=50, Checkpoint=rest
+      const noCol     = 10;
       const statusCol = 22;
-      const remarkCol = tableWidth - snCol - (tableWidth * 0.42) - statusCol;
-      const cpCol    = tableWidth - snCol - statusCol - remarkCol;
+      const remarkCol = 52;
+      const cpCol     = tableWidth - noCol - statusCol - remarkCol;
 
-      const checkpointHeaders = ["S.No", "Checkpoint", "Status", "Remarks"];
+      const checkpointHeaders = ["No", "Checkpoint", "Status", "Remarks"];
       const checkpointBody = entry.checkpoints.map((row, index) => [
         String(index + 1),
-        row.checkpoint,
-        row.status,
-        row.remark || ""
+        row.checkpoint || "",
+        row.status     || "",
+        row.remark     || ""
       ]);
 
       doc.autoTable({
@@ -2539,40 +2551,42 @@
         tableWidth,
         margin: { left: margin, right: margin },
         columnStyles: {
-          0: { cellWidth: snCol,     halign: "center" },
-          1: { cellWidth: cpCol,     halign: "left",   overflow: "linebreak" },
-          2: { cellWidth: statusCol, halign: "center" },
-          3: { cellWidth: remarkCol, halign: "left",   overflow: "linebreak" }
+          0: { cellWidth: noCol,     halign: "center", valign: "middle" },
+          1: { cellWidth: cpCol,     halign: "left",   valign: "middle", overflow: "linebreak" },
+          2: { cellWidth: statusCol, halign: "center", valign: "middle" },
+          3: { cellWidth: remarkCol, halign: "left",   valign: "middle", overflow: "linebreak" }
         },
         headStyles: {
           fillColor: [242, 247, 241],
           textColor: [71, 96, 80],
           fontStyle: "bold",
-          cellPadding: 5,
-          fontSize: 10,
+          cellPadding: 4,
+          fontSize: 8,
           halign: "center",
           lineColor: [0, 0, 0],
           lineWidth: 0.5
         },
         bodyStyles: {
-          cellPadding: 5,
+          cellPadding: 3,
           lineColor: [0, 0, 0],
           lineWidth: 0.5,
           overflow: "linebreak",
           valign: "middle",
-          fontSize: 9
+          fontSize: 8   // Bug 8: smaller font so text fits
         },
-        alternateRowStyles: { fillColor: [251, 253, 249] }
+        alternateRowStyles: { fillColor: [251, 253, 249] },
+        // Bug 8: auto row height — jsPDF-autoTable handles this by default when overflow:linebreak
+        rowPageBreak: "auto"
       });
 
       yPos = doc.lastAutoTable.finalY + 6;
 
-      // ── General Remarks section (only printed if non-empty) ───────────────
-      if (entry.remarks) {
+      // ── General Remarks (Bug 4: always render if entry.remarks is set) ────
+      if (entry.remarks && entry.remarks.trim()) {
         doc.autoTable({
           startY: yPos,
           head: [["General Remarks"]],
-          body: [[entry.remarks]],
+          body: [[entry.remarks.trim()]],
           tableWidth,
           margin: { left: margin, right: margin },
           headStyles: {
@@ -2580,7 +2594,7 @@
             textColor: [120, 60, 0],
             fontStyle: "bold",
             cellPadding: 4,
-            fontSize: 10,
+            fontSize: 9,
             lineColor: [0, 0, 0],
             lineWidth: 0.5
           },
@@ -2589,7 +2603,7 @@
             lineColor: [0, 0, 0],
             lineWidth: 0.5,
             overflow: "linebreak",
-            fontSize: 9
+            fontSize: 8
           }
         });
         yPos = doc.lastAutoTable.finalY + 6;
@@ -2633,7 +2647,8 @@
 
       const entryForPdf = { ...entry, checkpoints };
 
-      const serialSafe = (entry.serialPrefix || "noSerial").replace(/[^a-zA-Z0-9]/g, "-");
+      const serialDigits = (entry.serialPrefix || "noSerial").replace(/^S\/N\s*-\s*/i, "");
+      const serialSafe = serialDigits.replace(/[^a-zA-Z0-9]/g, "");
       const moduleSafe = entry.moduleName.replace(/[^a-zA-Z0-9]/g, "-");
       const partSafe   = entry.partNo.replace(/[^a-zA-Z0-9]/g, "-");
       const fileName   = `${partSafe}_${moduleSafe}_${serialSafe}.pdf`;
