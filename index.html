@@ -510,29 +510,62 @@
 
     .check-row {
       display: grid;
-      grid-template-columns: 1.2fr 1fr;
-      gap: 12px;
+      grid-template-columns: 2fr 80px 80px 1fr 1fr;
+      gap: 10px;
       align-items: center;
-      padding: 16px;
+      padding: 12px 16px;
       background: #fff;
       border: 1px solid #e5efe5;
       border-radius: 16px;
     }
 
+    .check-row-header {
+      display: grid;
+      grid-template-columns: 2fr 80px 80px 1fr 1fr;
+      gap: 10px;
+      padding: 10px 16px;
+      background: #f2f7f1;
+      border: 1px solid #c8d8c8;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #476050;
+      margin-bottom: 6px;
+    }
+
     .radio-pair {
       display: flex;
-      gap: 14px;
+      gap: 8px;
       flex-wrap: wrap;
     }
 
     .radio-pill {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
+      gap: 6px;
+      padding: 8px 10px;
       border: 1px solid var(--border);
       border-radius: 999px;
       background: #fafdf7;
+      font-size: 13px;
+    }
+
+    .check-input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      resize: none;
+    }
+
+    .check-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(47,107,69,0.10);
     }
 
     .empty-state {
@@ -877,8 +910,19 @@
                   </select>
                 </div>
                 <div class="field">
+                  <label for="templateSnPrefix">Module Serial Prefix (First 8 digits)</label>
+                  <input id="templateSnPrefix" type="text" maxlength="8" placeholder="e.g. 12345678" required />
+                </div>
+              </div>
+
+              <div class="two-col">
+                <div class="field">
                   <label for="templateFile">Upload Check Points Excel</label>
                   <input id="templateFile" type="file" accept=".xlsx,.xls,.csv" required />
+                </div>
+                <div class="field small-note" style="align-self:end; padding-bottom:4px;">
+                  Serial numbers for this module will be: <strong>S/N - [prefix][MMYYXXX]</strong>.<br/>
+                  Employees enter only the last 7 digits during data entry.
                 </div>
               </div>
 
@@ -983,25 +1027,44 @@
               <input id="entryVerifiedBy" type="text" placeholder="Reporting person name" required />
             </div>
             <div class="field">
-              <label for="entryGeneralSerial">Serial Number</label>
-              <input id="entryGeneralSerial" type="text" placeholder="Enter serial number" />
+              <label for="entrySnStart">Starting Serial Number (Last 7 Digits)</label>
+              <input id="entrySnStart" type="text" maxlength="7" placeholder="e.g. 0425001" />
             </div>
           </div>
 
-          <div class="field">
-            <label for="entryQuantityDone">Quantity Done</label>
-            <input id="entryQuantityDone" type="number" min="0" placeholder="Enter completed quantity" />
+          <div class="two-col">
+            <div class="field">
+              <label for="entryQuantityDone">Quantity Inspected <span style="font-weight:400;color:var(--muted)">(auto-increments S/N)</span></label>
+              <input id="entryQuantityDone" type="number" min="1" placeholder="e.g. 15 — generates 15 individual PDFs" />
+            </div>
+            <div id="entrySnPreview" class="mini-card" style="align-self:end;font-size:13px;color:var(--muted);padding:12px 14px;">
+              Enter Starting S/N and Quantity above to preview.
+            </div>
           </div>
 
           <div id="checkpointRows" class="entry-sheet"></div>
 
-          <div class="field">
-            <label for="entryRemarks">Remarks</label>
-            <textarea id="entryRemarks" rows="4" placeholder="Additional notes"></textarea>
+          <div class="form-card" style="margin-top:4px;background:#f9fdf7;border:1px dashed #c8d8c8;">
+            <div class="card-header" style="margin-bottom:10px;">
+              <div>
+                <h3 style="font-size:15px;">General Remarks</h3>
+                <p style="font-size:13px;">For issues not covered in the checkpoints above. Enter the remark and the specific S/N number(s) it applies to.</p>
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="field">
+                <label for="entryGeneralRemarks">Remark / Observation</label>
+                <textarea id="entryGeneralRemarks" rows="3" placeholder="Describe the issue or observation..." class="check-input"></textarea>
+              </div>
+              <div class="field">
+                <label for="entryGeneralRemarksSN">Applicable S/N Last 7 Digits <span style="font-weight:400;color:var(--muted)">(comma-separated, e.g. 0425002,0425007)</span></label>
+                <input id="entryGeneralRemarksSN" type="text" placeholder="Leave blank to apply to ALL" class="check-input" style="height:auto;padding:8px 10px;" />
+              </div>
+            </div>
           </div>
 
           <div class="toolbar">
-            <button class="action-btn" type="submit">Save and Download PDF</button>
+            <button class="action-btn" type="submit">Save and Download PDFs</button>
             <button id="clearEntryButton" class="ghost-btn" type="button">Clear Form</button>
           </div>
         </form>
@@ -1059,6 +1122,13 @@
               <option value="Safety">Safety</option>
             </select>
           </div>
+          <div class="field">
+            <label for="editTemplateSnPrefix">Module Serial Prefix (First 8 digits)</label>
+            <input id="editTemplateSnPrefix" type="text" maxlength="8" placeholder="e.g. 12345678" required />
+          </div>
+        </div>
+
+        <div class="two-col">
           <div class="field">
             <label for="editTemplateFile">Replace Check Points Excel</label>
             <input id="editTemplateFile" type="file" accept=".xlsx,.xls,.csv" />
@@ -1362,6 +1432,48 @@
       bindEvent("dashboardSearchModule", "keydown", (e) => { if (e.key==="Enter") renderDashboardSearch(); });
       bindEvent("dashboardSearchPart",   "keydown", (e) => { if (e.key==="Enter") renderDashboardSearch(); });
       bindEvent("editTemplateForm", "submit", handleEditTemplateSubmit);
+
+      // Live S/N preview — updates as employee types
+      function updateSnPreview() {
+        const templateId = document.getElementById("entryTemplateSelect").value;
+        const template   = appState.templates.find(t => t.id === templateId);
+        const preview    = document.getElementById("entrySnPreview");
+        if (!preview) return;
+
+        const snPrefix = template && template.snPrefix ? template.snPrefix : null;
+        const startVal = document.getElementById("entrySnStart").value.trim();
+        const qtyVal   = parseInt(document.getElementById("entryQuantityDone").value.trim(), 10);
+
+        if (!snPrefix) {
+          preview.textContent = "No module selected yet.";
+          return;
+        }
+        if (!startVal) {
+          preview.innerHTML = `<strong>Module S/N Prefix:</strong> ${snPrefix} &mdash; Enter starting S/N and quantity above.`;
+          return;
+        }
+        if (!/^\d{7}$/.test(startVal)) {
+          preview.textContent = "Starting S/N must be exactly 7 digits.";
+          return;
+        }
+        if (!qtyVal || qtyVal < 1) {
+          preview.innerHTML = `First S/N: <strong>S/N - ${snPrefix}${startVal}</strong><br/>Enter Quantity Inspected to see full range.`;
+          return;
+        }
+
+        const startNum = parseInt(startVal, 10);
+        const endNum   = startNum + qtyVal - 1;
+        const first    = `S/N - ${snPrefix}${startVal}`;
+        const last     = `S/N - ${snPrefix}${String(endNum).padStart(7, "0")}`;
+
+        preview.innerHTML = qtyVal === 1
+          ? `<strong>${first}</strong><br/><span style="color:var(--primary)">1 individual PDF will be generated.</span>`
+          : `<strong>${first}</strong> &rarr; <strong>${last}</strong><br/><span style="color:var(--primary)">${qtyVal} individual PDFs will be generated.</span>`;
+      }
+
+      bindEvent("entrySnStart",       "input",  updateSnPreview);
+      bindEvent("entryQuantityDone",  "input",  updateSnPreview);
+      bindEvent("entryTemplateSelect","change", updateSnPreview);
 
       document.querySelectorAll(".nav-link").forEach((button) => {
         button.addEventListener("click", () => openPage(button.dataset.page));
@@ -1684,6 +1796,12 @@
         return;
       }
 
+      const snPrefix = document.getElementById("templateSnPrefix").value.trim();
+      if (!/^\d{8}$/.test(snPrefix)) {
+        showToast("Module Serial Prefix must be exactly 8 digits.", true);
+        return;
+      }
+
       const fileInput = document.getElementById("templateFile");
       const file = fileInput.files[0];
 
@@ -1704,6 +1822,7 @@
           id: "tpl-" + Date.now(),
           moduleName: document.getElementById("templateModuleName").value.trim(),
           partNo,
+          snPrefix,
           level: document.getElementById("templateLevel").value,
           createdOn: new Date().toISOString(),
           checkpoints,
@@ -1854,20 +1973,34 @@
         </div>
       `;
 
-      checkpointRows.innerHTML = template.checkpoints.map((checkpoint, index) => `
+      checkpointRows.innerHTML = `
+        <div class="check-row-header">
+          <div>Checkpoint</div>
+          <div style="text-align:center;">OK</div>
+          <div style="text-align:center;">Not OK</div>
+          <div>Remarks</div>
+          <div>Rework Module S/N <span style="font-weight:400;font-size:11px;">(comma-sep last 7)</span></div>
+        </div>
+      ` + template.checkpoints.map((checkpoint, index) => `
         <div class="check-row">
-          <div>
-            <strong>${index + 1}. ${checkpoint}</strong>
-          </div>
-          <div class="radio-pair">
+          <div><strong>${index + 1}.</strong> ${checkpoint}</div>
+          <div style="display:flex;justify-content:center;">
             <label class="radio-pill">
               <input type="radio" name="status-${index}" value="OK" required />
               OK
             </label>
+          </div>
+          <div style="display:flex;justify-content:center;">
             <label class="radio-pill">
-              <input type="radio" name="status-${index}" value="Not OK" required />
+              <input type="radio" name="status-${index}" value="Not OK" />
               Not OK
             </label>
+          </div>
+          <div>
+            <textarea class="check-input" name="remark-${index}" rows="2" placeholder="Remark (optional)"></textarea>
+          </div>
+          <div>
+            <input class="check-input" type="text" name="reworksn-${index}" placeholder="e.g. 0425002,0425005" />
           </div>
         </div>
       `).join("");
@@ -1875,8 +2008,10 @@
 
     function clearEntryForm() {
       const templateId = document.getElementById("entryTemplateSelect").value;
-      document.getElementById("entryRemarks").value = "";
-      document.getElementById("entryGeneralSerial").value = "";
+      document.getElementById("entryGeneralRemarks").value = "";
+      document.getElementById("entryGeneralRemarksSN").value = "";
+      document.getElementById("entrySnStart").value = "";
+      document.getElementById("entrySnPreview").textContent = "Enter Starting S/N and Quantity above to preview.";
       document.getElementById("entryQuantityDone").value = "";
       document.getElementById("entryVerifiedBy").value = currentUser.reportingPerson || "";
 
@@ -1900,114 +2035,200 @@
         return;
       }
 
+      // ── Collect checkpoint statuses, per-row remarks and rework S/Ns ──────
       const rows = template.checkpoints.map((checkpoint, index) => {
         const checkedStatus = document.querySelector(`input[name="status-${index}"]:checked`);
+        const remarkEl  = document.querySelector(`[name="remark-${index}"]`);
+        const reworkSnEl = document.querySelector(`[name="reworksn-${index}"]`);
         return {
           checkpoint,
-          status: checkedStatus ? checkedStatus.value : ""
+          status: checkedStatus ? checkedStatus.value : "",
+          remark: remarkEl ? remarkEl.value.trim() : "",
+          // parse comma-separated last-7 digit S/Ns into an array
+          reworkSNs: reworkSnEl
+            ? reworkSnEl.value.split(",").map(s => s.trim()).filter(s => /^\d{7}$/.test(s))
+            : []
         };
       });
 
       const missing = rows.some((row) => !row.status);
       if (missing) {
-        showToast("Please select status for all checkpoints.", true);
+        showToast("Please select OK or Not OK for all checkpoints.", true);
         return;
       }
 
-      const quantityDoneValue = parseInt(document.getElementById("entryQuantityDone").value.trim(), 10);
-      const quantityDone = Number.isInteger(quantityDoneValue) && quantityDoneValue >= 0 ? quantityDoneValue : 0;
-
-      const entry = {
-        id: "entry-" + Date.now(),
-        templateId: template.id,
-        moduleName: template.moduleName,
-        partNo: template.partNo,
-        level: template.level,
-        date: document.getElementById("entryDate").value,
-        time: document.getElementById("entryTime").value,
-        inspectedBy: currentUser.name,
-        inspectedById: currentUser.employeeId,
-        verifiedBy: document.getElementById("entryVerifiedBy").value.trim(),
-        quantityDone,
-        serialPrefix: document.getElementById("entryGeneralSerial").value.trim(),
-        remarks: document.getElementById("entryRemarks").value.trim(),
-        checkpoints: rows, // used locally for PDF generation only — NOT stored in DB
-        savedAt: new Date().toISOString()
-      };
-
-      if (!entry.verifiedBy) {
-        showToast("Please enter verified by name.", true);
+      const verifiedBy = document.getElementById("entryVerifiedBy").value.trim();
+      if (!verifiedBy) {
+        showToast("Please enter the Verified By name.", true);
         return;
       }
 
-      // Build lean entry — only statuses, no checkpoint text repeated
-      const results = entry.checkpoints.map(r => r.status);
-      const leanEntry = {
-        id: entry.id,
-        templateId: entry.templateId,
-        moduleName: entry.moduleName,
-        partNo: entry.partNo,
-        level: entry.level,
-        date: entry.date,
-        time: entry.time,
-        inspectedBy: entry.inspectedBy,
-        inspectedById: entry.inspectedById,
-        verifiedBy: entry.verifiedBy,
-        quantityDone: entry.quantityDone,
-        serialPrefix: entry.serialPrefix,
-        remarks: entry.remarks,
-        results,          // ["OK","Not OK",...] — no checkpoint text stored
-        savedAt: entry.savedAt,
-        pdfUrl: null
-      };
+      // ── General remarks (bottom section) ─────────────────────────────────
+      const generalRemark   = document.getElementById("entryGeneralRemarks").value.trim();
+      const generalRemarkSNRaw = document.getElementById("entryGeneralRemarksSN").value.trim();
+      const generalRemarkSNs = generalRemarkSNRaw
+        ? generalRemarkSNRaw.split(",").map(s => s.trim()).filter(s => /^\d{7}$/.test(s))
+        : []; // empty = applies to ALL
 
-      // Save ONLY to Firestore module collection — NOT in appState
-      if (db) {
-        const folderKey = entry.moduleName.replace(/[^a-zA-Z0-9]/g, "_");
-        try {
-          await db.collection("modules").doc(folderKey)
-            .collection("entries").doc(entry.id).set(leanEntry);
-          firestoreEntries.unshift(leanEntry); // update local cache
-        } catch (e) {
-          console.error("Entry save failed:", e);
-          showToast("Failed to save entry to database.", true);
-          return;
+      // ── Serial Number range from Start + Qty ──────────────────────────────
+      const snPrefix = (template.snPrefix || "").trim();
+      if (!snPrefix || !/^\d{8}$/.test(snPrefix)) {
+        showToast("This template does not have a valid 8-digit serial prefix. Please edit the template first.", true);
+        return;
+      }
+
+      const snStartRaw = document.getElementById("entrySnStart").value.trim();
+      if (!snStartRaw) {
+        showToast("Please enter the Starting Serial Number (last 7 digits).", true);
+        return;
+      }
+      if (!/^\d{7}$/.test(snStartRaw)) {
+        showToast("Starting S/N must be exactly 7 digits.", true);
+        return;
+      }
+
+      const qtyVal = parseInt(document.getElementById("entryQuantityDone").value.trim(), 10);
+      if (!qtyVal || qtyVal < 1) {
+        showToast("Please enter Quantity Inspected (minimum 1).", true);
+        return;
+      }
+      if (qtyVal > 100) {
+        showToast("Cannot generate more than 100 individual reports at once.", true);
+        return;
+      }
+
+      const snStartNum = parseInt(snStartRaw, 10);
+      const snEndNum   = snStartNum + qtyVal - 1;
+
+      // ── Duplicate check for full range before saving anything ─────────────
+      const conflicting = [];
+      for (let n = snStartNum; n <= snEndNum; n++) {
+        const last7 = String(n).padStart(7, "0");
+        const fullSN = `S/N - ${snPrefix}${last7}`;
+        if (firestoreEntries.some(e => e.templateId === templateId && e.serialPrefix === fullSN)) {
+          conflicting.push(fullSN);
         }
-      } else {
-        // No Firebase — keep in memory only for this session
-        firestoreEntries.unshift(leanEntry);
+      }
+      if (conflicting.length) {
+        showToast(`Duplicate S/N(s) in this module: ${conflicting.join(", ")}. Submission blocked.`, true);
+        return;
       }
 
-      // Generate PDF — capture blob before save()
-      const serialSafe = (entry.serialPrefix || "noSerial").replace(/[^a-zA-Z0-9]/g, "-");
-      const moduleSafe = entry.moduleName.replace(/[^a-zA-Z0-9]/g, "-");
-      const partSafe = entry.partNo.replace(/[^a-zA-Z0-9]/g, "-");
-      const fileName = `${partSafe}_${moduleSafe}_${serialSafe}.pdf`;
-      const { doc } = generatePdfDoc(entry);
-      const pdfBlob = doc.output("blob");
-      doc.save(fileName);
+      // ── Generate one entry + one PDF per serial number ────────────────────
+      const baseDate   = document.getElementById("entryDate").value;
+      const baseTime   = document.getElementById("entryTime").value;
+      const folderKey  = template.moduleName.replace(/[^a-zA-Z0-9]/g, "_");
+      const moduleSafe = template.moduleName.replace(/[^a-zA-Z0-9]/g, "-");
+      const partSafe   = template.partNo.replace(/[^a-zA-Z0-9]/g, "-");
+      let savedCount   = 0;
+
+      for (let n = snStartNum; n <= snEndNum; n++) {
+        const last7  = String(n).padStart(7, "0");
+        const fullSN = `S/N - ${snPrefix}${last7}`;
+
+        // For each checkpoint, only include remark if this S/N is in reworkSNs
+        // (if reworkSNs is empty for that row, the remark applies to NO unit — 
+        //  it means the employee filled the remark but targeted it to specific S/Ns)
+        const checkpointsForThisSN = rows.map(row => {
+          const hasRemark = row.remark && row.reworkSNs.length > 0 && row.reworkSNs.includes(last7);
+          return {
+            checkpoint: row.checkpoint,
+            status: row.status,
+            remark: hasRemark ? row.remark : ""
+          };
+        });
+
+        // General remarks: applies to this S/N if no target specified (all) or explicitly listed
+        const generalRemarkForThisSN = generalRemark
+          ? (generalRemarkSNs.length === 0 || generalRemarkSNs.includes(last7) ? generalRemark : "")
+          : "";
+
+        const entry = {
+          id: "entry-" + Date.now() + "-" + n,
+          templateId: template.id,
+          moduleName: template.moduleName,
+          partNo: template.partNo,
+          level: template.level,
+          date: baseDate,
+          time: baseTime,
+          inspectedBy: currentUser.name,
+          inspectedById: currentUser.employeeId,
+          verifiedBy,
+          quantityDone: qtyVal,
+          serialPrefix: fullSN,
+          remarks: generalRemarkForThisSN,
+          checkpoints: checkpointsForThisSN,
+          savedAt: new Date().toISOString()
+        };
+
+        // Lean entry for Firestore (no full checkpoint text stored)
+        const results  = checkpointsForThisSN.map(r => r.status);
+        const cpRemarks = checkpointsForThisSN.map(r => r.remark);
+        const leanEntry = {
+          id: entry.id,
+          templateId: entry.templateId,
+          moduleName: entry.moduleName,
+          partNo: entry.partNo,
+          level: entry.level,
+          date: entry.date,
+          time: entry.time,
+          inspectedBy: entry.inspectedBy,
+          inspectedById: entry.inspectedById,
+          verifiedBy: entry.verifiedBy,
+          quantityDone: entry.quantityDone,
+          serialPrefix: entry.serialPrefix,
+          remarks: entry.remarks,
+          results,
+          cpRemarks,
+          savedAt: entry.savedAt,
+          pdfUrl: null
+        };
+
+        if (db) {
+          try {
+            await db.collection("modules").doc(folderKey)
+              .collection("entries").doc(entry.id).set(leanEntry);
+            firestoreEntries.unshift(leanEntry);
+          } catch (e) {
+            console.error("Entry save failed for", fullSN, e);
+            showToast(`Failed to save entry for ${fullSN}.`, true);
+            continue;
+          }
+        } else {
+          firestoreEntries.unshift(leanEntry);
+        }
+
+        // Generate individual PDF
+        const snSafe   = fullSN.replace(/[^a-zA-Z0-9]/g, "-");
+        const fileName = `${partSafe}_${moduleSafe}_${snSafe}.pdf`;
+        const { doc }  = generatePdfDoc(entry);
+        const pdfBlob  = doc.output("blob");
+        doc.save(fileName);
+        savedCount++;
+
+        // Upload to Cloudinary in background
+        (async (le, fKey, fName, blob) => {
+          try {
+            const pdfUrl = await uploadPdfToCloudinary(blob, fName);
+            if (pdfUrl) {
+              le.pdfUrl = pdfUrl;
+              const cached = firestoreEntries.find(e => e.id === le.id);
+              if (cached) cached.pdfUrl = pdfUrl;
+              if (db) {
+                db.collection("modules").doc(fKey)
+                  .collection("entries").doc(le.id)
+                  .update({ pdfUrl }).catch(e => console.error("pdfUrl update failed:", e));
+              }
+            }
+          } catch (err) {
+            console.error("Cloudinary upload error for", le.serialPrefix, err);
+          }
+        })(leanEntry, folderKey, fileName, pdfBlob);
+      }
 
       refreshCurrentPage();
       clearEntryForm();
-      showToast("Entry saved and PDF downloaded.");
-
-      // Upload to Cloudinary silently, update pdfUrl in Firestore
-      try {
-        const pdfUrl = await uploadPdfToCloudinary(pdfBlob, fileName);
-        if (pdfUrl) {
-          leanEntry.pdfUrl = pdfUrl;
-          const cached = firestoreEntries.find(e => e.id === leanEntry.id);
-          if (cached) cached.pdfUrl = pdfUrl;
-          if (db) {
-            const folderKey = entry.moduleName.replace(/[^a-zA-Z0-9]/g, "_");
-            db.collection("modules").doc(folderKey)
-              .collection("entries").doc(entry.id)
-              .update({ pdfUrl }).catch(e => console.error("pdfUrl update failed:", e));
-          }
-        }
-      } catch (error) {
-        console.error("Cloudinary upload error:", error);
-      }
+      showToast(`${savedCount} individual PDF report(s) saved and downloaded.`);
     }
 
     function renderProfile() {
@@ -2111,6 +2332,7 @@
       document.getElementById("editTemplateName").value = template.moduleName;
       document.getElementById("editTemplatePartNo").value = template.partNo;
       document.getElementById("editTemplateLevel").value = template.level;
+      document.getElementById("editTemplateSnPrefix").value = template.snPrefix || "";
       document.getElementById("editTemplateModal").classList.remove("hidden");
     };
 
@@ -2179,7 +2401,13 @@
       const moduleName = document.getElementById("editTemplateName").value.trim();
       const partNo = document.getElementById("editTemplatePartNo").value.trim();
       const level = document.getElementById("editTemplateLevel").value;
+      const snPrefix = document.getElementById("editTemplateSnPrefix").value.trim();
       const file = document.getElementById("editTemplateFile").files[0];
+
+      if (!/^\d{8}$/.test(snPrefix)) {
+        showToast("Module Serial Prefix must be exactly 8 digits.", true);
+        return;
+      }
 
       const duplicate = appState.templates.some((t) =>
         t.id !== templateId && t.partNo.toLowerCase() === partNo.toLowerCase()
@@ -2194,6 +2422,7 @@
         template.moduleName = moduleName;
         template.partNo = partNo;
         template.level = level;
+        template.snPrefix = snPrefix;
 
         if (file) {
           const checkpoints = await readCheckpointsFromExcel(file);
@@ -2221,25 +2450,25 @@
     // ─────────────────────────────────────────────
     function generatePdfDoc(entry) {
       const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageWidth  = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 14;
+      const margin     = 14;
       const tableWidth = pageWidth - 2 * margin;
       const labelWidth = 28;
       const valueWidth = (tableWidth - labelWidth * 2) / 2;
       let yPos = 16;
 
+      // ── Header ────────────────────────────────────────────────────────────
       doc.setFontSize(18);
       doc.setFont(undefined, "bold");
       doc.text(["HBL Engineering Ltd.", "Electronics Group"], pageWidth / 2, yPos, { align: "center" });
 
       const logoImg = document.getElementById("pdfLogo");
-      const logoY = 14;
+      const logoY   = 14;
       if (logoImg && logoImg.complete && logoImg.naturalWidth) {
-        const logoWidth = 32;
+        const logoWidth  = 32;
         const logoHeight = (logoImg.naturalHeight / logoImg.naturalWidth) * logoWidth;
-        const logoX = pageWidth - margin - logoWidth;
-        doc.addImage(logoImg, "PNG", logoX, logoY, logoWidth, logoHeight);
+        doc.addImage(logoImg, "PNG", pageWidth - margin - logoWidth, logoY, logoWidth, logoHeight);
       } else {
         doc.setFontSize(22);
         doc.setFont(undefined, "bold");
@@ -2255,14 +2484,16 @@
       doc.setLineWidth(1);
       doc.line(margin, yPos, pageWidth - margin, yPos);
       yPos += 12;
+
+      // ── Info table (no Remarks row — moved to checkpoint level) ───────────
       doc.setFontSize(11);
       doc.setFont(undefined, "normal");
       const headerData = [
-        ["Module:", entry.moduleName, "Part No:", entry.partNo],
-        ["Level:", entry.level, "Date:", entry.date],
-        ["Serial No:", entry.serialPrefix || "-", "Inspected By:", entry.inspectedBy],
-        ["Time:", entry.time, "Verified By:", entry.verifiedBy],
-        ["Qty Done:", entry.quantityDone || "-", "Remarks:", entry.remarks || "-"]
+        ["Module:",      entry.moduleName,         "Part No:",      entry.partNo],
+        ["Level:",       entry.level,               "Date:",         entry.date],
+        ["Serial No:",   entry.serialPrefix || "-", "Inspected By:", entry.inspectedBy],
+        ["Time:",        entry.time,                "Verified By:",  entry.verifiedBy],
+        ["Qty Inspected:", String(entry.quantityDone || "-"), "", ""]
       ];
 
       doc.autoTable({
@@ -2287,11 +2518,18 @@
 
       yPos = doc.lastAutoTable.finalY + 8;
 
-      const checkpointHeaders = ["S.No", "Checkpoint", "Status"];
+      // ── Checkpoint table with inline Remarks column ───────────────────────
+      const snCol    = 12;
+      const statusCol = 22;
+      const remarkCol = tableWidth - snCol - (tableWidth * 0.42) - statusCol;
+      const cpCol    = tableWidth - snCol - statusCol - remarkCol;
+
+      const checkpointHeaders = ["S.No", "Checkpoint", "Status", "Remarks"];
       const checkpointBody = entry.checkpoints.map((row, index) => [
         String(index + 1),
         row.checkpoint,
-        row.status
+        row.status,
+        row.remark || ""
       ]);
 
       doc.autoTable({
@@ -2301,9 +2539,10 @@
         tableWidth,
         margin: { left: margin, right: margin },
         columnStyles: {
-          0: { cellWidth: 18, halign: "center", overflow: "visible" },
-          1: { cellWidth: tableWidth - 18 - 28, halign: "left", overflow: "linebreak" },
-          2: { cellWidth: 28, halign: "center", overflow: "visible" }
+          0: { cellWidth: snCol,     halign: "center" },
+          1: { cellWidth: cpCol,     halign: "left",   overflow: "linebreak" },
+          2: { cellWidth: statusCol, halign: "center" },
+          3: { cellWidth: remarkCol, halign: "left",   overflow: "linebreak" }
         },
         headStyles: {
           fillColor: [242, 247, 241],
@@ -2320,22 +2559,50 @@
           lineColor: [0, 0, 0],
           lineWidth: 0.5,
           overflow: "linebreak",
-          valign: "middle"
+          valign: "middle",
+          fontSize: 9
         },
-        alternateRowStyles: {
-          fillColor: [251, 253, 249]
-        }
+        alternateRowStyles: { fillColor: [251, 253, 249] }
       });
 
-      yPos = pageHeight - 30;
+      yPos = doc.lastAutoTable.finalY + 6;
+
+      // ── General Remarks section (only printed if non-empty) ───────────────
+      if (entry.remarks) {
+        doc.autoTable({
+          startY: yPos,
+          head: [["General Remarks"]],
+          body: [[entry.remarks]],
+          tableWidth,
+          margin: { left: margin, right: margin },
+          headStyles: {
+            fillColor: [255, 243, 224],
+            textColor: [120, 60, 0],
+            fontStyle: "bold",
+            cellPadding: 4,
+            fontSize: 10,
+            lineColor: [0, 0, 0],
+            lineWidth: 0.5
+          },
+          bodyStyles: {
+            cellPadding: 5,
+            lineColor: [0, 0, 0],
+            lineWidth: 0.5,
+            overflow: "linebreak",
+            fontSize: 9
+          }
+        });
+        yPos = doc.lastAutoTable.finalY + 6;
+      }
+
+      // ── Signature footer ──────────────────────────────────────────────────
+      const footerY = Math.max(yPos + 10, pageHeight - 28);
       doc.setFontSize(10);
       doc.setFont(undefined, "normal");
-
-      doc.text(`Inspected By: ${entry.inspectedBy}`, margin, yPos);
-      doc.text(`Date: ${entry.date}`, margin, yPos + 6);
-
-      doc.text(`Verified By: ${entry.verifiedBy}`, pageWidth / 2, yPos);
-      doc.text(`Date: ${entry.date}`, pageWidth / 2, yPos + 6);
+      doc.text(`Inspected By: ${entry.inspectedBy}`, margin, footerY);
+      doc.text(`Date: ${entry.date}`, margin, footerY + 6);
+      doc.text(`Verified By: ${entry.verifiedBy}`, pageWidth / 2, footerY);
+      doc.text(`Date: ${entry.date}`, pageWidth / 2, footerY + 6);
 
       return { doc };
     }
@@ -2345,31 +2612,36 @@
     // Also re-attempts Cloudinary upload if not yet uploaded
     // ─────────────────────────────────────────────
     window.downloadEntryPdf = async function downloadEntryPdf(entryId) {
-      // Look up from firestoreEntries cache (never from appState)
       let entry = firestoreEntries.find((item) => item.id === entryId);
       if (!entry) {
         showToast("Entry not found.", true);
         return;
       }
 
-      // Reconstruct checkpoints array from template + results for PDF
       const template = appState.templates.find(t => t.id === entry.templateId);
       const checkpoints = template
-        ? template.checkpoints.map((cp, i) => ({ checkpoint: cp, status: (entry.results || [])[i] || "-" }))
-        : (entry.results || []).map((s, i) => ({ checkpoint: `Checkpoint ${i+1}`, status: s }));
+        ? template.checkpoints.map((cp, i) => ({
+            checkpoint: cp,
+            status: (entry.results || [])[i] || "-",
+            remark: (entry.cpRemarks || [])[i] || ""
+          }))
+        : (entry.results || []).map((s, i) => ({
+            checkpoint: `Checkpoint ${i+1}`,
+            status: s,
+            remark: (entry.cpRemarks || [])[i] || ""
+          }));
 
       const entryForPdf = { ...entry, checkpoints };
 
       const serialSafe = (entry.serialPrefix || "noSerial").replace(/[^a-zA-Z0-9]/g, "-");
       const moduleSafe = entry.moduleName.replace(/[^a-zA-Z0-9]/g, "-");
-      const partSafe = entry.partNo.replace(/[^a-zA-Z0-9]/g, "-");
-      const fileName = `${partSafe}_${moduleSafe}_${serialSafe}.pdf`;
+      const partSafe   = entry.partNo.replace(/[^a-zA-Z0-9]/g, "-");
+      const fileName   = `${partSafe}_${moduleSafe}_${serialSafe}.pdf`;
 
       const { doc } = generatePdfDoc(entryForPdf);
       const pdfBlob = doc.output("blob");
       doc.save(fileName);
 
-      // Re-upload to Cloudinary if not yet uploaded
       if (!entry.pdfUrl) {
         try {
           const pdfUrl = await uploadPdfToCloudinary(pdfBlob, fileName);
